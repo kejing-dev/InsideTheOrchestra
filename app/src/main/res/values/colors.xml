@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- app icon background: rosewood red, this app's own (design icon.iconBg; registry checked by the design station) -->
+    <color name="ic_launcher_background">#B5476B</color>
+</resources>

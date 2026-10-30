@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Optional: eye gaze for "look at a player" (runtime permission; refused -> head direction). No network, no mic, no camera. -->
+    <uses-permission android:name="com.picovr.permission.EYE_TRACKING" />
+
+    <application
+        android:name=".platform.SpatialApplication"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Orchestra"
+        tools:targetApi="31">
+
+        <activity
+            android:name=".platform.LaunchActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Orchestra">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- DefaultStage: one Mixed Stage (passthrough), the only container of the app -->
+            <meta-data
+                android:name="pico.spatial.stage.id"
+                android:value="OrchestraStage" />
+            <!-- "1": StageStyle.Mixed: virtual content and the real room at full intensity -->
+            <meta-data
+                android:name="pico.spatial.stage.style"
+                android:value="1" />
+            <meta-data
+                android:name="pico.spatial.stage.immersion"
+                android:value="0" />
+            <meta-data
+                android:name="pico.spatial.stage.immersion_min"
+                android:value="0" />
+            <meta-data
+                android:name="pico.spatial.stage.immersion_max"
+                android:value="0" />
+        </activity>
+        <activity
+            android:name=".platform.EyePermissionActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Orchestra" />
+    </application>
+
+</manifest>

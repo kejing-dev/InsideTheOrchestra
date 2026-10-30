@@ -319,6 +319,9 @@ with open(os.path.join(ASSETS, "parts.bin"), "wb") as fh:
 # ---------------------------------------------------------------------------------------------
 out = sys.argv[1]
 os.makedirs(out, exist_ok=True)
+LOUD_RMS = 0.30
+KNEE = 0.70
+CEIL = 0.97
 rests = {}
 for s, ps in STEMS.items():
     y = sum(part_audio[p] for p in ps)
@@ -328,10 +331,11 @@ for s, ps in STEMS.items():
     r = np.sqrt(np.mean(y[: k * w].reshape(k, w) ** 2, axis=1))
     loud = np.sort(r)[int(k * 0.7):]
     ref = np.sqrt(np.mean(loud ** 2)) + 1e-9
-    y = y * (0.12 / ref)
+    # v0.1.4 (user: "声音太小了 ... 至少大 3-5 倍"): loud-part RMS 0.30 (-10.5 dBFS, was 0.12 / -18.4 dBFS), peaks
+    # through a soft limiter (tanh knee) instead of scaling the whole stem down
+    y = y * (LOUD_RMS / ref)
+    y = np.where(np.abs(y) < KNEE, y, np.sign(y) * (KNEE + (CEIL - KNEE) * np.tanh((np.abs(y) - KNEE) / (CEIL - KNEE))))
     pk = np.max(np.abs(y))
-    if pk > 0.98:
-        y *= 0.98 / pk
     pcm = (np.clip(y, -1, 1) * 32767).astype("<i2")
     with wave.open(os.path.join(out, s + ".wav"), "wb") as wf:
         wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(SR); wf.writeframes(pcm.tobytes())

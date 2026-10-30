@@ -78,6 +78,9 @@ internal fun MoreMenu(state: OrchUiState, filled: Boolean, onEvent: (OrchEvent) 
                 leadingIcon = R.drawable.ic_globe,
             )
         }
+        MenuRow(Copy.menuMode(en)) {
+            Segments(listOf("mode_mr" to "MR", "mode_vr" to "VR"), if (state.vr) 1 else 0, { onEvent(OrchEvent.VrSelected(it == 1)) }, 84.dp, 40.dp)
+        }
         MenuRow(Copy.menuSize(en)) {
             Segments(listOf("size_full" to "1:1", "size_half" to "1:2"), if (state.scale < 1f) 1 else 0, { onEvent(OrchEvent.ScaleSelected(if (it == 1) 0.5f else 1f)) }, 84.dp, 40.dp)
         }

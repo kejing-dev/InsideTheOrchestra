@@ -100,6 +100,10 @@ internal object Copy {
 
     fun close(en: Boolean) = t(en, "关闭", "Close")
 
+    fun master(en: Boolean) = t(en, "总音量", "Master")
+
+    fun volume(en: Boolean) = t(en, "音量", "Volume")
+
     fun dragHint(en: Boolean) = t(en, "拖动移动面板", "Drag to move the panel")
 
     fun recall(en: Boolean) = t(en, "叫回面板", "Call back panel")
@@ -125,6 +129,8 @@ internal object Copy {
     fun menuLanguage(en: Boolean) = t(en, "语言", "Language")
 
     fun menuSize(en: Boolean) = t(en, "大小", "Size")
+
+    fun menuMode(en: Boolean) = t(en, "透视 / 音乐厅", "MR / VR")
 
     fun on(en: Boolean) = t(en, "开", "On")
 

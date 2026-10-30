@@ -114,6 +114,8 @@ internal fun ControlPanel(state: OrchUiState, filled: Boolean, onEvent: (OrchEve
         ControlTitle(state, onEvent, onDrag, onDragEnd)
         Text(text = Copy.pieceLine(en), color = PicoTheme.colorScheme.labelSecondary, style = PicoTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.height(20.dp).probe("piece"))
         TransportRow(state, onEvent)
+        // v0.1.4: master volume (user: "整体有个 master volume")
+        VolumeRow("master", Copy.master(state.english), state.masterVol, { v, done -> onEvent(OrchEvent.MasterVolume(v, done)) })
         Row(modifier = Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(text = Copy.hint(state), color = PicoTheme.colorScheme.labelPrimary, style = OrchType.body, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).probe("hint"))
             if (state.audio == AudioState.FAILED) {
@@ -189,6 +191,33 @@ internal fun SectionBar(f: Family, state: OrchUiState, piece: Piece, beat: Mutab
             BarButton("bar_${f.id}_mute", Copy.sectionMute(en, muted), muted) { onEvent(OrchEvent.FamilyMuteClicked(f)) }
             BarButton("bar_${f.id}_info", Copy.info(en), infoOn) { onEvent(OrchEvent.FamilyInfoClicked(f)) }
         }
+        // v0.1.4: this section's own volume (user: "每个乐团加个音量条")
+        VolumeRow("bar_${f.id}_vol", Copy.volume(en), state.familyVol[f] ?: 1f, { v, done -> onEvent(OrchEvent.FamilyVolume(f, v, done)) }, height = 44.dp)
+    }
+}
+
+/**
+ * A volume slider row: label, the slider (0 - 100 %, snapping at 50 / 75 / 100 % in the ViewModel), the percentage.
+ * [onChange] gets (value, released).
+ */
+@Composable
+private fun VolumeRow(name: String, label: String, value: Float, onChange: (Float, Boolean) -> Unit, height: androidx.compose.ui.unit.Dp = 48.dp) {
+    var last by remember { mutableStateOf(value) }
+    Row(modifier = Modifier.fillMaxWidth().height(height), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Icon(painter = painterResource(R.drawable.ic_volume), contentDescription = label, modifier = Modifier.size(22.dp), tint = PicoTheme.colorScheme.labelPrimary)
+        Text(text = label, color = PicoTheme.colorScheme.labelPrimary, style = OrchType.figure, maxLines = 1, softWrap = false)
+        Slider(
+            value.coerceIn(0f, 1f),
+            { v: Float ->
+                last = v
+                onChange(v, false)
+            },
+            Modifier.weight(1f).probe(name),
+            0f..1f,
+            { onChange(last, true) },
+            colors = SliderDefaults.sliderColors(trackColor = PicoTheme.colorScheme.fillPrimary, progressColor = PicoTheme.colorScheme.interaction, progressHighColor = PicoTheme.colorScheme.interaction),
+        )
+        Text(text = io.embodit.insideorchestra.domain.usecase.VolumeSnap.percent(value), color = PicoTheme.colorScheme.labelPrimary, style = OrchType.figure, maxLines = 1, softWrap = false, textAlign = TextAlign.End, modifier = Modifier.width(48.dp).probe("${name}_pct"))
     }
 }
 

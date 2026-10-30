@@ -74,6 +74,8 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
             captionsOn = prefs.getBoolean("captions", true),
             scale = if (prefs.getFloat("scale", 1f) < 1f) 0.5f else 1f,
             muted = prefs.getBoolean("muted", false),
+            vr = prefs.getBoolean("vr", false),
+            masterVol = prefs.getFloat("masterVol", 1f),
             coachSeen = prefs.getBoolean("coachSeen", false),
             durationS = piece.durationS,
         )
@@ -217,6 +219,24 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
                 }
             }
             is OrchEvent.PointerChanged -> set { it.copy(headPointer = event.head) }
+            is OrchEvent.MasterVolume -> {
+                val v = io.embodit.insideorchestra.domain.usecase.VolumeSnap.snap(event.v)
+                if (event.done) {
+                    prefs.edit().putFloat("masterVol", v).apply()
+                    OrchLog.i("VOLUME master=${(v * 100).toInt()}%")
+                }
+                set { it.copy(masterVol = v) }
+            }
+            is OrchEvent.FamilyVolume -> {
+                val v = io.embodit.insideorchestra.domain.usecase.VolumeSnap.snap(event.v)
+                if (event.done) OrchLog.i("VOLUME ${event.family.id}=${(v * 100).toInt()}%")
+                set { it.copy(familyVol = it.familyVol + (event.family to v)) }
+            }
+            is OrchEvent.VrSelected -> {
+                prefs.edit().putBoolean("vr", event.vr).apply()
+                OrchLog.i("MODE ${if (event.vr) "vr" else "mr"}")
+                set { it.copy(vr = event.vr) }
+            }
             OrchEvent.SideRecallClicked -> {
                 OrchLog.i("SIDE recall")
                 set { it.copy(menuOpen = false, sideLost = false) }
@@ -614,6 +634,12 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
             "info" -> Family.of(value)?.let { onEvent(OrchEvent.FamilyInfoClicked(it)) } ?: set { it.copy(cardFamily = null) }
             "atmarker", "confirm" -> onEvent(OrchEvent.PlaceAtMarkerClicked)
             "move" -> onEvent(OrchEvent.MoveOrchestraClicked)
+            "vr" -> onEvent(OrchEvent.VrSelected(on))
+            "master" -> value.toFloatOrNull()?.let { onEvent(OrchEvent.MasterVolume(it / 100f, true)) }
+            "fvol" -> {
+                val (f, v) = value.split(',').let { (it.getOrNull(0)?.let { id -> Family.of(id) }) to (it.getOrNull(1)?.toFloatOrNull()) }
+                if (f != null && v != null) onEvent(OrchEvent.FamilyVolume(f, v / 100f, true))
+            }
             "cancel" -> onEvent(OrchEvent.MoveCancelClicked)
             "unmark" -> onEvent(OrchEvent.ReplaceMarkerClicked)
             "recall" -> onEvent(OrchEvent.SideRecallClicked)

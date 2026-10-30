@@ -72,6 +72,55 @@ internal object SceneArt {
         return bmp
     }
 
+    /**
+     * The VR concert hall seen from inside (equirectangular 1024 x 512, row 0 = zenith): a dark ceiling with a ring
+     * of warm lights, balcony bands with little lamps, dark red walls and a dim floor band (the stage floor itself is
+     * its own disc). Calm and dark so the orchestra and the panels stay the brightest things.
+     */
+    fun concertHall(): Bitmap {
+        val w = 1024
+        val h = 512
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        val top = android.graphics.LinearGradient(0f, 0f, 0f, h.toFloat(), intArrayOf(0xFF0E0B10.toInt(), 0xFF1A1114.toInt(), 0xFF3A1A1E.toInt(), 0xFF2A1416.toInt(), 0xFF120C0C.toInt()), floatArrayOf(0f, 0.3f, 0.5f, 0.62f, 1f), Shader.TileMode.CLAMP)
+        p.shader = top
+        c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
+        p.shader = null
+        // ceiling lights ring
+        p.color = 0xFFFFE2A8.toInt()
+        for (i in 0 until 48) c.drawCircle((i + 0.5f) * w / 48f, h * 0.18f, 3f, p)
+        // two balcony bands with lamps
+        for ((y, a) in listOf(h * 0.40f to 0xFF5A2A22.toInt(), h * 0.48f to 0xFF4A221C.toInt())) {
+            p.color = a
+            c.drawRect(0f, y, w.toFloat(), y + 6f, p)
+            p.color = 0xFFFFC978.toInt()
+            for (i in 0 until 64) c.drawCircle((i + 0.5f) * w / 64f, y - 4f, 2f, p)
+        }
+        // pilasters
+        p.color = 0x30FFFFFF
+        for (i in 0 until 24) {
+            val x = (i + 0.5f) * w / 24f
+            c.drawRect(x - 2f, h * 0.50f, x + 2f, h * 0.62f, p)
+        }
+        return bmp
+    }
+
+    /** A warm wooden stage floor (256 x 256, planks along v). */
+    fun stageFloor(): Bitmap {
+        val n = 256
+        val bmp = Bitmap.createBitmap(n, n, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val p = Paint()
+        for (i in 0 until 16) {
+            p.color = if (i % 2 == 0) 0xFF6B4528.toInt() else 0xFF5E3C22.toInt()
+            c.drawRect(i * 16f, 0f, i * 16f + 16f, n.toFloat(), p)
+            p.color = 0xFF3E2716.toInt()
+            c.drawRect(i * 16f, 0f, i * 16f + 1f, n.toFloat(), p)
+        }
+        return bmp
+    }
+
     /** White soft-edged rectangle (alpha falls off over the outer 30 %): the floor zones tint it. */
     fun softRect(): Bitmap {
         val n = 128

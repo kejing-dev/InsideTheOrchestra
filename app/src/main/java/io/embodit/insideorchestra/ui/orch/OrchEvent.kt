@@ -71,6 +71,13 @@ sealed interface OrchEvent {
 
     data object CardCloseClicked : OrchEvent
 
+    data class MasterVolume(val v: Float, val done: Boolean) : OrchEvent
+
+    data class FamilyVolume(val family: Family, val v: Float, val done: Boolean) : OrchEvent
+
+    /** More menu: MR (passthrough) / VR (virtual concert hall). */
+    data class VrSelected(val vr: Boolean) : OrchEvent
+
     /** D21: bring the world-fixed side panel back in front (More menu, or the pill when it is out of view). */
     data object SideRecallClicked : OrchEvent
 

@@ -74,6 +74,12 @@ internal fun Entity.setMaterial(material: Material) {
 /** Overall opacity of an entity and its children (fades). */
 internal fun Entity.setOpacity(opacity: Float) {
     val existing = components[OpacityControllerComponent::class.java]
+    // v0.1.4 (user: "MR 乐队模型好像还有点半透明"): an OpacityControllerComponent, even at 1.0, sends the entity down the
+    // transparent path (no depth sorting between the musicians' own parts). Fully opaque = no component at all.
+    if (opacity >= 0.999f) {
+        if (existing != null) runCatching { components.remove(OpacityControllerComponent::class.java) }
+        return
+    }
     if (existing != null) existing.opacity = opacity.coerceIn(0f, 1f)
     else components.set(OpacityControllerComponent(opacity.coerceIn(0f, 1f)))
 }

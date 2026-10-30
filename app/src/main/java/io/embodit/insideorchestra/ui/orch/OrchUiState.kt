@@ -85,6 +85,15 @@ data class OrchUiState(
     val marker: Boolean = false,
     /** Pointing falls back to the head direction (no controller, no eyes): the hint says so. */
     val headPointer: Boolean = false,
+    /**
+     * VR (true) or MR (false), user 2026-10-29: "这应用 VR MR 应该都可以用". VR = an opaque virtual concert hall (dome +
+     * stage floor) around the orchestra inside the same Mixed Stage; MR = passthrough. Placing is the same in both.
+     */
+    val vr: Boolean = false,
+    /** v0.1.4 master volume 0..1 (side panel; snaps at 50 / 75 / 100 %), remembered. */
+    val masterVol: Float = 1f,
+    /** v0.1.4 per-section volume 0..1 (section bars; same snaps). */
+    val familyVol: Map<Family, Float> = Family.entries.associateWith { 1f },
     /** v0.1.2: placing was opened with [Move orchestra] ([Cancel] shows). */
     val placeMoving: Boolean = false,
     /** D21: the world-fixed side panel has been out of view for a while: the small [Call back] pill shows. */
@@ -146,6 +155,7 @@ data class OrchUiState(
                 cardFamily?.let { "card:${it.id}" },
                 if (mutedFamilies.isNotEmpty()) "fmute:" + mutedFamilies.joinToString("+") { it.id } else null,
                 if (marker) "marker" else null,
+                if (vr) "vr" else null,
                 if (muted) "mute" else null,
             ).joinToString(",")
 }

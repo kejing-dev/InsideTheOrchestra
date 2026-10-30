@@ -168,6 +168,29 @@ internal object Meshes {
         return m.build(name)
     }
 
+    /**
+     * A sphere seen from inside (normals inward) with equirectangular uv: u around (0 at -Z, growing to the right
+     * seen from the centre), v = 1 at the top (the engine samples v = 0 at the bitmap's bottom row).
+     */
+    fun sphereInside(radius: Float, name: String, rings: Int = 24, sectors: Int = 48): MeshResource {
+        val m = MeshBuilder()
+        val grid = Array(rings + 1) { IntArray(sectors + 1) }
+        for (r in 0..rings) {
+            val v = r.toFloat() / rings
+            val phi = PI * v // 0 top .. pi bottom
+            for (k in 0..sectors) {
+                val u = k.toFloat() / sectors
+                val th = 2 * PI * u
+                val x = (sin(phi) * sin(th)).toFloat()
+                val y = cos(phi).toFloat()
+                val z = (-sin(phi) * cos(th)).toFloat()
+                grid[r][k] = m.vertex(Vec3(x * radius, y * radius, z * radius), Vec3(-x, -y, -z), u, 1f - v)
+            }
+        }
+        for (r in 0 until rings) for (k in 0 until sectors) m.quad(grid[r][k], grid[r][k + 1], grid[r + 1][k + 1], grid[r + 1][k])
+        return m.build(name)
+    }
+
     /** Disc on the floor (XZ, facing +Y) with uv mapping the unit square (podium top label). */
     fun discUv(radius: Float, y: Float, name: String, segments: Int = 40): MeshResource {
         val m = MeshBuilder()

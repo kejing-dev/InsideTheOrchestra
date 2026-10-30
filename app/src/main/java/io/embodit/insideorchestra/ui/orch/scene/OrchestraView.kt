@@ -134,6 +134,7 @@ internal class OrchestraView(parent: Entity, private val m: SceneMaterials, priv
         v.model = clone
         byEntity[clone.id] = v
         v.lastOpacity = -1f
+        envIbl?.let { setEnvironmentIbl(it) }
     }
 
     /** The seat a tapped entity belongs to (its holder, body, model or any child of the model). */
@@ -149,6 +150,27 @@ internal class OrchestraView(parent: Entity, private val m: SceneMaterials, priv
     }
 
     fun isPodium(entity: Entity): Boolean = entity.id == podiumEntity.id
+
+    /**
+     * The musicians' (and podium's) share of the environment IBL: [scale] in VR (the hall lights them), null = the
+     * default real-world IBL (MR). Set on every mesh entity of the clones.
+     */
+    fun setEnvironmentIbl(scale: Float?) {
+        fun apply(e: Entity) {
+            if (e.components[com.pico.spatial.core.ecs.ModelComponent::class.java] != null) {
+                runCatching {
+                    if (scale == null) e.components.remove(com.pico.spatial.core.ecs.EnvironmentLightingSettingsComponent::class.java)
+                    else e.components.set(com.pico.spatial.core.ecs.EnvironmentLightingSettingsComponent(scale))
+                }
+            }
+            runCatching { e.getChildren() }.getOrNull()?.forEach { apply(it) }
+        }
+        for (v in seats) v.model?.let { apply(it) }
+        apply(podiumEntity)
+        envIbl = scale
+    }
+
+    private var envIbl: Float? = null
 
     /** Switches a musician's tap box on / off (off while it covers a panel). */
     fun setHittable(v: SeatView, on: Boolean) {

@@ -4,7 +4,7 @@ package io.embodit.insideorchestra.ui.orch.scene
 object PanelSpec {
     /**
      * v0.1.1: the side panel with the shared controls once the orchestra is placed (title, mute, more; piece; transport;
-     * hint + Back to place), 440 x 220. The section controls moved to one bar above each section ([bar]).
+     * master volume; hint + Move orchestra), 440 x 276. The section controls moved to one bar above each section ([bar]).
      */
     const val CONTROL = "controlPanel"
 
@@ -18,16 +18,16 @@ object PanelSpec {
     const val RECALL = "recallPanel"
     val RECALL_SIZE = 360f to 64f
 
-    val CONTROL_SIZE = 440f to 220f
+    val CONTROL_SIZE = 440f to 276f
     val PLACING_SIZE = 440f to 184f
 
-    /** v0.1.1: one bar per section above its players: dot + name, BeatMap dots, Solo / Mute / Info (440 x 72). */
-    val BAR_SIZE = 440f to 72f
+    /** v0.1.1: one bar per section above its players: dot + name, BeatMap dots, Solo / Mute / Info, its volume slider (440 x 124). */
+    val BAR_SIZE = 440f to 124f
 
     fun bar(f: io.embodit.insideorchestra.domain.model.Family): String = "bar" + f.id
 
     val BARS: List<String> = io.embodit.insideorchestra.domain.model.Family.entries.map { bar(it) }
-    val MENU_SIZE = 300f to 476f
+    val MENU_SIZE = 300f to 528f
     val CARD_SIZE = 360f to 420f
     val SNACK_SIZE = 600f to 72f
 

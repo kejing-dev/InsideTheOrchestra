@@ -85,7 +85,7 @@ class OrchestraAudio {
             }
             val controller =
                 runCatching {
-                    entity.components.set(ObjectAudioComponent(volume = 1f, directivity = Directivity(0f, 1f), distanceAttenuationMode = DistanceAttenuationMode.INVERSE_SQUARED, reverbVolume = REVERB, soundRadiusLevel = 0.1f))
+                    entity.components.set(ObjectAudioComponent(volume = 1f, directivity = Directivity(0f, 1f), distanceAttenuationMode = DistanceAttenuationMode.INVERSE_SQUARED, reverbVolume = REVERB, soundRadiusLevel = SOUND_RADIUS))
                     entity.prepareAudio(res)
                 }.onFailure { OrchLog.e("AUDIO prepare ${stem.id} failed: $it", it) }.getOrNull()
             if (controller == null) {
@@ -259,6 +259,12 @@ class OrchestraAudio {
 
     companion object {
         private const val REVERB = 0.3f
+
+        /**
+         * v0.1.4 (user: "声音太小了 ... 至少大 3-5 倍"): the source's effective radius (SDK: the attenuation reference),
+         * 0.1 -> 1.0 m, so 1 - 3 m away is no longer pushed down by INVERSE_SQUARED as if from 0.1 m.
+         */
+        private const val SOUND_RADIUS = 1.0f
         private const val EASE_TAU_S = 0.1f
         private const val SYNC_EVERY_S = 1f
         private const val SOFT_MS = 20

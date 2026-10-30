@@ -343,7 +343,9 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
                 frame()
             }
             OrchLog.i("MODEL $model ready in ${SystemClock.elapsedRealtime() - tm} ms")
+            logModelAlpha(model)
         }
+        if (hallLit) view.setEnvironmentIbl(VR_ENV_IBL)
         OrchLog.i("MODELS all ready ${templates.size}/${Orchestra.models.size} in ${SystemClock.elapsedRealtime() - t0} ms")
         loadAudio(false)
     }
@@ -541,7 +543,8 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         val ear = pose.toStage(Vec3.ZERO) + Vec3(0f, head.position.y - pose.anchor.y, 0f)
         val d = Stem.entries.associateWith { s -> pose.toStage(Vec3(s.sourceX, Orchestra.SOURCE_Y, s.sourceZ)).distanceTo(ear) }
         val max = d.values.maxOrNull() ?: return
-        audio.setBalance(d.mapValues { (_, v) -> (v / max) * (v / max) })
+        // v0.1.4: linear and never below 0.5 (was squared: the nearest stems sat at ~0.1, the whole band far too quiet)
+        audio.setBalance(d.mapValues { (_, v) -> maxOf(BALANCE_FLOOR, v / max) })
     }
 
     /** [Pull] (I22): [seatId] 0.8 m straight ahead of the head, the orchestra turned so it faces the user's side. */
@@ -660,6 +663,7 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         pollPlanes(now)
         syncFloor(state)
         syncVirtualRoom(state)
+        syncHall(state, now, dt)
         if (state.room == Room.PLACING) {
             ghostFrame(state, now, dt)
             triggerFrame()
@@ -1097,6 +1101,112 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         OrchLog.i("VROOM shown l=${rm.length} w=${rm.width} h=${rm.height}")
     }
 
+    /**
+     * VR mode (v0.1.4; user: "VR 模式需要把场景做好看，然后基于同一平面放置，转化自然 ... 光照按模式分开"): the concert hall
+     * (`assets/models/hall.glb`, tools/make_hall.py: wooden stage and acoustic shell, panelled red walls, balconies,
+     * velvet seats, coffered ceiling with lamps) stands in orchestra coordinates under the orchestra's own pose, so its
+     * floor is the plane the orchestra stands on and switching modes moves neither the orchestra nor the panels.
+     * Before anything is placed it stands around the user's floor point. The switch cross-fades in 0.8 s. VR adds warm
+     * stage spot lights and turns the real-world IBL on the musicians down; MR removes both.
+     */
+    private fun syncHall(state: OrchUiState, now: Long, dt: Float) {
+        val root = stageRoot ?: return
+        val want = if (state.vr) 1f else 0f
+        if (state.vr && hallRoot == null && !hallLoading) loadHall(root)
+        val hr = hallRoot ?: return
+        // fade
+        if (hallFade != want) {
+            val step = if (dt <= 0f) 1f else dt / HALL_FADE_S
+            hallFade = if (want > hallFade) minOf(want, hallFade + step) else maxOf(want, hallFade - step)
+            if (hallFade > 0f && !hr.enabled) hr.enabled = true
+            hr.setOpacity(hallFade)
+            if (hallFade <= 0f) hr.enabled = false
+        }
+        // lights and the musicians' share of the real-world IBL follow the mode
+        val lit = state.vr
+        if (lit != hallLit) {
+            hallLit = lit
+            for (l in hallLights) l.enabled = lit
+            orch?.setEnvironmentIbl(if (lit) VR_ENV_IBL else null)
+            OrchLog.i("HALL ${if (lit) "on (VR)" else "off (MR)"} lights=${hallLights.size} envIbl=${if (lit) VR_ENV_IBL else 1f}")
+        }
+        if (!hr.enabled) return
+        // pose: the orchestra's (placed, moving, or the placing ghost), else the user's floor point and heading
+        val pose = currentPose() ?: shownPose?.takeIf { state.room == Room.PLACING && marker != null }
+        val origin: Vec3
+        val rot: Quat4
+        if (pose != null) {
+            origin = pose.origin
+            rot = pose.rotation
+        } else {
+            val fy = floorY ?: (head.position.y - VIRTUAL_EYE_M)
+            origin = Vec3(head.position.x, fy, head.position.z) + HeadFrame.heading(head.rotation) * 3.0f
+            rot = Quat4.axisAngle(Vec3.UP, HeadFrame.yawOf(HeadFrame.heading(head.rotation)) + PI.toFloat())
+        }
+        val key = origin to rot
+        if (key != hallPoseKey) {
+            hallPoseKey = key
+            hr.setLocal(position = origin, rotation = rot)
+        }
+    }
+
+    private var hallRoot: Entity? = null
+    private var hallLoading = false
+    private var hallFade = 0f
+    private var hallLit = false
+    private var hallPoseKey: Any? = null
+    private val hallLights = ArrayList<Entity>()
+
+    private fun loadHall(root: Entity) {
+        hallLoading = true
+        scope.launch {
+            val t0 = SystemClock.elapsedRealtime()
+            val model = runCatching { Entity.loadSuspend("asset://models/hall.glb") }.onFailure { OrchLog.e("HALL load failed: $it", it) }.getOrNull()
+            if (model == null || stageRoot == null) {
+                hallLoading = false
+                return@launch
+            }
+            val hr = Entity().named("hall")
+            root.addChild(hr)
+            hr.addChild(model.named("hallModel"))
+            hr.enabled = false
+            // warm stage lights over the orchestra (orchestra coordinates), the centre one casting shadows; a soft fill
+            for ((i, p) in HALL_SPOTS.withIndex()) {
+                val l = Entity().named("hallSpot$i")
+                hr.addChild(l)
+                l.setLocal(position = p, rotation = Quat4.axisAngle(Vec3.RIGHT, -SPOT_PITCH_RAD))
+                l.components.set(com.pico.spatial.core.ecs.SpotLightComponent(WARM, SPOT_INTENSITY, SPOT_RADIUS_M, 28f, 52f, i == 1))
+                l.enabled = false
+                hallLights += l
+            }
+            val fill = Entity().named("hallFill")
+            hr.addChild(fill)
+            fill.setLocal(position = Vec3(0f, 6f, 5f))
+            fill.components.set(com.pico.spatial.core.ecs.PointLightComponent(WARM, FILL_INTENSITY, FILL_RADIUS_M))
+            fill.enabled = false
+            hallLights += fill
+            hallRoot = hr
+            hallLit = false
+            hallFade = 0f
+            hallPoseKey = null
+            logModelAlpha("hall")
+            OrchLog.i("HALL loaded in ${SystemClock.elapsedRealtime() - t0} ms")
+        }
+    }
+
+    /** Logs the alphaMode of every material in assets/models/<name>.glb (v0.1.4: the musicians must all be OPAQUE). */
+    private fun logModelAlpha(name: String) {
+        val ctx = OrchGraph.appContext ?: return
+        runCatching {
+            val bytes = ctx.assets.open("models/$name.glb").use { it.readBytes() }
+            val len = (bytes[12].toInt() and 0xFF) or ((bytes[13].toInt() and 0xFF) shl 8) or ((bytes[14].toInt() and 0xFF) shl 16) or ((bytes[15].toInt() and 0xFF) shl 24)
+            val json = org.json.JSONObject(String(bytes, 20, len, Charsets.UTF_8))
+            val mats = json.optJSONArray("materials")
+            val modes = (0 until (mats?.length() ?: 0)).map { i -> mats!!.getJSONObject(i).optString("alphaMode", "OPAQUE") }
+            OrchLog.i("MODEL $name alpha=${modes.distinct().joinToString("/")} materials=${modes.size} opaque=${modes.all { it == "OPAQUE" }}")
+        }.onFailure { OrchLog.w("MODEL $name alpha check failed: $it") }
+    }
+
     // ---------------------------------------------------------------- the placed orchestra
 
     /** Stick orbit / push (I20), controller drag (I21), pull / home animations (I22 / I23): all write [livePose]. */
@@ -1483,7 +1593,7 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
     /** Group targets (mute x master x focus / solo), the close-up clamps and the sync step (design `audio`). */
     private fun audioFrame(state: OrchUiState, dt: Float) {
         if (audio.status != OrchestraAudio.Status.READY) return
-        val master = if (state.muted) 0f else MASTER
+        val master = if (state.muted) 0f else state.masterVol
         val solo = state.solo
         val focusStem = focus?.let { Orchestra.seat(it)?.stem }
         val targets = FloatArray(Stem.entries.size) { i ->
@@ -1496,7 +1606,8 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
                     focusStem != null -> if (s == focusStem) 1f else FOCUS_REST
                     else -> 1f
                 }
-            master * mix
+            // v0.1.4: the section's own volume slider on top
+            master * mix * (state.familyVol[s.family] ?: 1f)
         }
         audio.setTargets(targets)
         val pose = currentPose()
@@ -1699,6 +1810,17 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         /** D21 [Call back]: 0.9 m at 15 degrees below the level gaze: cos15 * 0.9 ahead, sin15 * 0.9 down. */
         private const val RECALL_AHEAD_M = 0.8693f
         private const val RECALL_DOWN_M = 0.2329f
+        private const val HALL_FADE_S = 0.8f
+        private val WARM = com.pico.spatial.core.math.Color4(1.0f, 0.86f, 0.68f, 1f)
+        private val HALL_SPOTS = listOf(Vec3(-3f, 8f, 1.0f), Vec3(0f, 8f, 0.0f), Vec3(3f, 8f, 1.0f))
+        private val SPOT_PITCH_RAD = Math.toRadians(70.0).toFloat()
+        private const val SPOT_INTENSITY = 40000f
+        private const val SPOT_RADIUS_M = 14f
+        private const val FILL_INTENSITY = 6000f
+        private const val FILL_RADIUS_M = 14f
+
+        /** VR: the musicians take a quarter of the real-world IBL (the hall's warm lights do the rest). */
+        private const val VR_ENV_IBL = 0.25f
         private const val SIDE_MIN_M = 0.4f
         private const val SIDE_MAX_M = 2.5f
         private const val SIDE_LOST_DEG = 70f
@@ -1732,7 +1854,7 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         private val SWAY_RAD = Math.toRadians(2.0).toFloat()
         private const val SOLO_DIM = 0.4f
         private const val NEAR_FADE = 0.3f
-        private const val MASTER = 0.7f
+        private const val BALANCE_FLOOR = 0.5f
         private const val SOLO_REST = 0.08f
         private const val FOCUS_REST = 0.5f
         private const val CLAMP_M = 0.5f

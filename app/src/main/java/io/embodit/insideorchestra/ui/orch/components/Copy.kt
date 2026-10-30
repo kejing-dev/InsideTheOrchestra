@@ -38,11 +38,12 @@ internal object Copy {
         return when {
             s.room == Room.STARTING -> t(en, "正在准备…", "Getting ready…")
             s.room == Room.FINDING -> t(en, "环顾一下房间，正在找地面…（最多 5 秒）", "Look around the room, finding the floor… (up to 5 s)")
+            // v0.1.2 (D1 "放置模式必须有终点"): every placing hint says what is happening now -> what comes next
             s.room == Room.PLACING && !s.marker ->
-                t(en, "用手柄射线或目光指向地面，捏一下 / 扣扳机放标记", "Aim the controller ray or your eyes at the floor, then pinch or pull the trigger to set a marker") + headNote(s)
-            s.room == Room.PLACING && s.tooClose -> place("标记离你太近，换个远一点的地方", "Too close to you: set the marker farther away")
-            s.room == Room.PLACING && s.snapped -> place("已对齐墙边 · 点「移到标记处」", "Lined up with the wall · Tap Move to marker")
-            s.room == Room.PLACING -> place("点「移到标记处」放下乐团", "Tap Move to marker to put the orchestra there")
+                movePrefix(s) + t(en, "在地上点一下放乐团（手柄射线或目光 + 捏合）→ 确认", "Tap the floor to place the orchestra (controller ray or eyes + pinch) → Confirm") + headNote(s)
+            s.room == Room.PLACING && s.tooClose -> movePrefix(s) + t(en, "离你太近 → 在远一点的地上再点一下", "Too close to you → tap the floor farther away")
+            s.room == Room.PLACING && s.snapped -> movePrefix(s) + place("已对齐墙边 → 点「确认」锁定", "Lined up with the wall → tap Confirm to lock it")
+            s.room == Room.PLACING -> movePrefix(s) + place("乐团在标记处 → 点「确认」锁定", "Orchestra at the marker → tap Confirm to lock it")
             s.audio == AudioState.FAILED -> t(en, "声音没加载出来", "The sound did not load")
             s.moving -> t(en, "松开即停", "Let go to stop")
             s.solo != null -> {
@@ -74,6 +75,8 @@ internal object Copy {
         }
     }
 
+    private fun movePrefix(s: OrchUiState): String = if (!s.placeMoving) "" else t(s.english, "移动乐团：", "Moving: ")
+
     /** D1: the head direction is only a stand-in when there is neither a controller nor eye tracking. */
     private fun headNote(s: OrchUiState): String = if (!s.headPointer) "" else t(s.english, "（没检测到手柄和眼动，暂用头部朝向）", " (no controller or eye tracking: using head direction)")
 
@@ -86,6 +89,14 @@ internal object Copy {
     fun info(en: Boolean) = t(en, "讲解", "Info")
 
     fun atMarker(en: Boolean) = t(en, "移到标记处", "Move to marker")
+
+    fun confirm(en: Boolean) = t(en, "确认", "Confirm")
+
+    fun replaceMarker(en: Boolean) = t(en, "重放", "Re-place")
+
+    fun cancel(en: Boolean) = t(en, "取消", "Cancel")
+
+    fun moveOrchestra(en: Boolean) = t(en, "移动乐团", "Move orchestra")
 
     fun close(en: Boolean) = t(en, "关闭", "Close")
 

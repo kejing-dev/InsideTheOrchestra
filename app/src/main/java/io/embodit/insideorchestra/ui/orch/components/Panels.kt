@@ -89,9 +89,12 @@ internal fun PlacingPanel(state: OrchUiState, filled: Boolean, onEvent: (OrchEve
             Text(text = Copy.hint(state), color = if (state.tooClose) PicoTheme.colorScheme.error else PicoTheme.colorScheme.labelPrimary, style = OrchType.body, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).probe("hint"))
         }
         if (state.room == Room.PLACING) {
+            // v0.1.2: placing ends here: [Confirm] locks the orchestra; [Re-place] drops the marker; [Cancel] after [Move]
             Row(modifier = Modifier.fillMaxWidth().height(KeyHeight), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                WordButton("turn45", Copy.turn45(en), { onEvent(OrchEvent.Turn45Clicked) }, iconRes = R.drawable.ic_rot_cw, enabled = state.marker, minWidth = 0.dp, modifier = Modifier.weight(1f))
-                WordButton("atmarker", Copy.atMarker(en), { onEvent(OrchEvent.PlaceAtMarkerClicked) }, primary = true, enabled = state.marker && !state.tooClose, iconRes = R.drawable.ic_point, minWidth = 0.dp, modifier = Modifier.weight(1.4f))
+                WordButton("turn45", Copy.turn45(en), { onEvent(OrchEvent.Turn45Clicked) }, enabled = state.marker, minWidth = 0.dp, modifier = Modifier.weight(1f))
+                WordButton("unmark", Copy.replaceMarker(en), { onEvent(OrchEvent.ReplaceMarkerClicked) }, enabled = state.marker, minWidth = 0.dp, modifier = Modifier.weight(1f))
+                if (state.placeMoving) WordButton("cancel", Copy.cancel(en), { onEvent(OrchEvent.MoveCancelClicked) }, minWidth = 0.dp, modifier = Modifier.weight(1f))
+                WordButton("confirm", Copy.confirm(en), { onEvent(OrchEvent.PlaceAtMarkerClicked) }, primary = true, enabled = state.marker && !state.tooClose, iconRes = R.drawable.ic_check, minWidth = 0.dp, modifier = Modifier.weight(1.2f))
             }
         }
     }
@@ -115,9 +118,9 @@ internal fun ControlPanel(state: OrchUiState, filled: Boolean, onEvent: (OrchEve
             Text(text = Copy.hint(state), color = PicoTheme.colorScheme.labelPrimary, style = OrchType.body, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).probe("hint"))
             if (state.audio == AudioState.FAILED) {
                 WordButton("retry", Copy.retry(en), { onEvent(OrchEvent.RetryAudioClicked) }, iconRes = R.drawable.ic_retry, minWidth = 96.dp, height = 40.dp)
-            } else if (state.moved) {
-                WordButton("home", Copy.home(en), { onEvent(OrchEvent.HomeClicked) }, iconRes = R.drawable.ic_home, minWidth = 112.dp, height = 40.dp)
             }
+            // v0.1.2: the orchestra is locked; this worded button is the only way to move it again
+            WordButton("move", Copy.moveOrchestra(en), { onEvent(OrchEvent.MoveOrchestraClicked) }, iconRes = R.drawable.ic_move, minWidth = 0.dp, height = 40.dp)
         }
     }
 }

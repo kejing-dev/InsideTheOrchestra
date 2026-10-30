@@ -83,7 +83,7 @@ internal fun MoreMenu(state: OrchUiState, filled: Boolean, onEvent: (OrchEvent) 
         }
         Row(modifier = Modifier.fillMaxWidth().height(KeyHeight), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             WordButton("menu_home", Copy.home(en), { onEvent(OrchEvent.HomeClicked) }, enabled = state.moved, minWidth = 0.dp, height = 44.dp, modifier = Modifier.weight(1f))
-            WordButton("menu_replace", Copy.replace(en), { onEvent(OrchEvent.ReplaceClicked) }, minWidth = 0.dp, height = 44.dp, modifier = Modifier.weight(1f))
+            WordButton("menu_replace", Copy.moveOrchestra(en), { onEvent(OrchEvent.MoveOrchestraClicked) }, minWidth = 0.dp, height = 44.dp, modifier = Modifier.weight(1f))
             Key("menu_exit", R.drawable.ic_exit, Copy.exit(en)) { onEvent(OrchEvent.ExitClicked) }
         }
         WordButton("menu_recall", Copy.recall(en), { onEvent(OrchEvent.SideRecallClicked) }, iconRes = R.drawable.ic_pull, minWidth = 0.dp, height = 44.dp, modifier = Modifier.fillMaxWidth())

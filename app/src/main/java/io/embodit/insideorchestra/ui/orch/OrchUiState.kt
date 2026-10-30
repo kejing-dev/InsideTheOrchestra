@@ -85,6 +85,8 @@ data class OrchUiState(
     val marker: Boolean = false,
     /** Pointing falls back to the head direction (no controller, no eyes): the hint says so. */
     val headPointer: Boolean = false,
+    /** v0.1.2: placing was opened with [Move orchestra] ([Cancel] shows). */
+    val placeMoving: Boolean = false,
     /** D21: the world-fixed side panel has been out of view for a while: the small [Call back] pill shows. */
     val sideLost: Boolean = false,
     // ---- debug
@@ -184,4 +186,10 @@ sealed interface OrchUiEffect {
 
     /** D21: put the side panel back at its designed place in front of the user, now. */
     data object RecallSide : OrchUiEffect
+
+    /** v0.1.2 [Move orchestra]: the ghost starts where the orchestra stood (marker at its podium front, same turn). */
+    data class StartMove(val pose: io.embodit.insideorchestra.domain.usecase.OrchPose) : OrchUiEffect
+
+    /** v0.1.2 [Re-place]: drop the scene's marker. */
+    data object ClearMarker : OrchUiEffect
 }

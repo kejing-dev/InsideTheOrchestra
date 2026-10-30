@@ -441,6 +441,10 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
             if (previous.room == Room.PLACING) resetGhost()
         } else if (previous.room != Room.PLACING) {
             resetGhost()
+            pendingMove?.let {
+                pendingMove = null
+                applyMove(it)
+            }
         }
         if (state.turnSerial != turnSeen) {
             turnSeen = state.turnSerial
@@ -716,10 +720,13 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         OrchLog.i("SIDE placed at=${OrchLog.pos(sidePos)}")
     }
 
-    /** [Call back] (More menu / the pill): the side panel back in front, then fixed again. */
+    /** [Call back] (More menu / the pill): the side panel straight ahead, 15 degrees down, 0.9 m (D21); fixed again. */
     fun recallSide() {
         if (!hasHead) return
-        placeSideNow(SystemClock.elapsedRealtime())
+        val h = HeadFrame.heading(head.rotation)
+        sidePos = head.position + h * RECALL_AHEAD_M + Vec3(0f, -RECALL_DOWN_M, 0f)
+        sideAwaySinceMs = NEVER
+        OrchLog.i("SIDE recalled at=${OrchLog.pos(sidePos)}")
         if (reportedSideLost) {
             reportedSideLost = false
             sink(OrchEvent.SideLost(false))
@@ -940,6 +947,38 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         if (first) sink(OrchEvent.MarkerChanged(true))
     }
 
+    /** v0.1.2 [Move orchestra]: the ghost starts where the orchestra stood (marker at its podium front, same turn). */
+    fun startMove(pose: OrchPose) {
+        // the room switch to placing resets the ghost when it is rendered: apply after that, whichever comes first
+        if (ui.room != Room.PLACING) {
+            pendingMove = pose
+            return
+        }
+        applyMove(pose)
+    }
+
+    private var pendingMove: OrchPose? = null
+
+    private fun applyMove(pose: OrchPose) {
+        val fy = floorY ?: pose.anchor.y
+        marker = Vec3(pose.anchor.x, fy, pose.anchor.z)
+        ghostAnchor = marker
+        ghostYaw = pose.yaw
+        userTurned = true
+        held = null
+        OrchLog.i("MOVE ghost from=${OrchLog.pos(marker)}")
+    }
+
+    /** v0.1.2 [Re-place]: no marker, no ghost; the next floor tap sets a new one. */
+    fun clearMarker() {
+        marker = null
+        ghostAnchor = null
+        held = null
+        markerDot?.enabled = false
+        orch?.setShown(false)
+        OrchLog.i("MARKER cleared")
+    }
+
     /** Debug `marker=<m>`: the marker that far along the level heading (QA stands in for a ray; debug builds only). */
     private fun debugMarker(d: Float): Boolean {
         if (!hasHead) return false
@@ -1081,7 +1120,12 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
             }
             return
         }
-        // controller drag: the podium front follows the ray's floor point, keeping the grab offset
+        // v0.1.2 (D1 "放好就锁住"): a placed orchestra is locked; the stick, drags, the trigger and the ray do not move it.
+        // Only [Move orchestra] (back to placing) or the panel's [Bring closer] / [Back to place] animations do.
+        if (state.room.placed) {
+            if (livePose != null && !dragging) endMove(commit = true)
+            return
+        }
         val grab = dragGrab
         if (dragging && grab != null && c != null) {
             val fp = placeRule.floorPoint(c.ray.origin, c.ray.direction, pose.anchor.y)
@@ -1530,7 +1574,12 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
     fun onSpatialDrag(phase: String, value: SpatialDragValue) {
         when (phase) {
             "start" -> {
-                if (!ui.room.placed || !hasHead) return
+                // v0.1.2: locked once placed; dragging the orchestra needs [Move orchestra] (then it is placing)
+                if (ui.room.placed) {
+                    OrchLog.i("DRAG ignored (locked)")
+                    return
+                }
+                if (!hasHead) return
                 val target = value.targetEntity ?: return
                 val view = orch ?: return
                 if (!view.isPodium(target) && view.zoneOf(target) == null) return
@@ -1647,6 +1696,9 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         private const val CAPTION_BREATH_MS = 1200L
         private const val CARD_RELAYOUT_M = 1.5f
         private val CARD_MAX_BEARING_RAD = Math.toRadians(25.0).toFloat()
+        /** D21 [Call back]: 0.9 m at 15 degrees below the level gaze: cos15 * 0.9 ahead, sin15 * 0.9 down. */
+        private const val RECALL_AHEAD_M = 0.8693f
+        private const val RECALL_DOWN_M = 0.2329f
         private const val SIDE_MIN_M = 0.4f
         private const val SIDE_MAX_M = 2.5f
         private const val SIDE_LOST_DEG = 70f

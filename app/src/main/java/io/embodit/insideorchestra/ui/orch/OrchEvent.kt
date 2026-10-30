@@ -55,8 +55,17 @@ sealed interface OrchEvent {
     /** v0.1.1 placing: a floor marker was set (true) or cleared. */
     data class MarkerChanged(val set: Boolean) : OrchEvent
 
-    /** v0.1.1 placing: [Move to marker]. */
+    /** Placing: [Confirm] (v0.1.2: the end of placing; the orchestra is locked afterwards). */
     data object PlaceAtMarkerClicked : OrchEvent
+
+    /** Placing: [Re-place] (drop the marker, stay placing). */
+    data object ReplaceMarkerClicked : OrchEvent
+
+    /** Side panel: [Move orchestra] (the only way to unlock it). */
+    data object MoveOrchestraClicked : OrchEvent
+
+    /** Placing after [Move orchestra]: [Cancel] (back where it was, locked). */
+    data object MoveCancelClicked : OrchEvent
 
     data class PointerChanged(val head: Boolean) : OrchEvent
 

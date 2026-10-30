@@ -11,6 +11,9 @@ import io.embodit.insideorchestra.domain.model.Orchestra
 import io.embodit.insideorchestra.domain.model.Piece
 import io.embodit.insideorchestra.domain.model.Stem
 import io.embodit.insideorchestra.domain.usecase.PieceClock
+import io.embodit.insideorchestra.domain.usecase.PlaceInput
+import io.embodit.insideorchestra.domain.usecase.PlaceState
+import io.embodit.insideorchestra.domain.usecase.PlacementFlow
 import io.embodit.insideorchestra.platform.OrchGraph
 import io.embodit.insideorchestra.platform.OrchLog
 import java.util.Locale
@@ -40,6 +43,17 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
 
     private val effectChannel = Channel<OrchUiEffect>(Channel.BUFFERED)
     val effects = effectChannel.receiveAsFlow()
+
+    /** v0.1.2: the placing state machine (D1: placing has an end, then the orchestra is locked). */
+    var flow = PlaceState()
+        private set
+
+    private fun step(input: PlaceInput): PlaceState {
+        val before = flow
+        flow = PlacementFlow.reduce(flow, input)
+        if (flow != before) OrchLog.i("FLOW ${input::class.simpleName} -> ${flow.mode} marker=${flow.marker != null} moving=${flow.moving}")
+        return flow
+    }
 
     private var snackSerial = 0
     private var snackJob: Job? = null
@@ -179,11 +193,28 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
                 set { it.copy(cardFamily = if (open) null else event.family, solo = if (open || it.solo?.family == event.family) it.solo else null) }
                 if (open && s.solo?.family == event.family) restore("info-close")
             }
-            is OrchEvent.MarkerChanged -> set { it.copy(marker = event.set) }
+            is OrchEvent.MarkerChanged -> {
+                step(if (event.set) PlaceInput.FloorTap(io.embodit.insideorchestra.domain.model.Vec3.ZERO) else PlaceInput.Replace)
+                set { it.copy(marker = event.set) }
+            }
             OrchEvent.PlaceAtMarkerClicked -> {
                 val pose = OrchGraph.ghostPlacement?.invoke()
-                OrchLog.i("PLACE at marker pose=${pose != null} marker=${_state.value.marker}")
-                if (_state.value.marker) place(OrchEvent.PlaceRequested(pose))
+                OrchLog.i("CONFIRM pose=${pose != null} marker=${_state.value.marker}")
+                if (flow.canConfirm && pose != null) place(OrchEvent.PlaceRequested(pose))
+            }
+            OrchEvent.ReplaceMarkerClicked -> {
+                step(PlaceInput.Replace)
+                set { it.copy(marker = false, snapped = false, tooClose = false) }
+                effect(OrchUiEffect.ClearMarker)
+            }
+            OrchEvent.MoveOrchestraClicked -> moveOrchestra()
+            OrchEvent.MoveCancelClicked -> {
+                val before = flow
+                step(PlaceInput.Cancel)
+                if (before.placing && flow.locked) {
+                    OrchLog.i("MOVE cancelled")
+                    set { it.copy(room = Room.PLACED, pose = flow.pose, marker = false, placeMoving = false, snapped = false, tooClose = false) }
+                }
             }
             is OrchEvent.PointerChanged -> set { it.copy(headPointer = event.head) }
             OrchEvent.SideRecallClicked -> {
@@ -198,7 +229,11 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
             }
             is OrchEvent.FocusChanged -> set { it.copy(focusSeat = event.seatId) }
             is OrchEvent.NearChanged -> set { it.copy(near = event.near) }
-            is OrchEvent.Moved -> set { it.copy(pose = event.pose) }
+            is OrchEvent.Moved -> {
+                // only the panel's own actions ([Bring closer], [Back to place], debug) move a locked orchestra
+                if (flow.locked) flow = flow.copy(pose = event.pose)
+                set { it.copy(pose = event.pose) }
+            }
             is OrchEvent.MovingChanged -> set { it.copy(moving = event.moving) }
             is OrchEvent.AudioLoaded -> set { it.copy(audio = if (event.ok) AudioState.READY else AudioState.FAILED) }
             OrchEvent.PlayClicked -> play("panel")
@@ -248,7 +283,7 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
                 set { it.copy(language = event.language, english = englishFor(event.language)) }
             }
             is OrchEvent.ScaleSelected -> setScale(event.scale)
-            OrchEvent.ReplaceClicked -> replace()
+            OrchEvent.ReplaceClicked -> moveOrchestra()
             OrchEvent.ExitClicked -> {
                 OrchLog.i("EXIT")
                 effect(OrchUiEffect.AudioPause)
@@ -339,8 +374,9 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
             OrchLog.i("PLACE refused (too close / no floor)")
             return
         }
-        OrchLog.i("PLACE anchor=${OrchLog.pos(pose.anchor)} yaw=${OrchLog.f(Math.toDegrees(pose.yaw.toDouble()).toFloat(), 1)} scale=${pose.scale} snapped=${s.snapped}")
-        set { it.copy(room = Room.PLACED, pose = pose, home = pose, transport = if (clock.t > 0.01f) Transport.PAUSED else Transport.SEATED, snapped = false, tooClose = false, noWall = false, planesOn = true, snack = if (it.snack?.kind == SnackKind.SNAPPED || it.snack?.kind == SnackKind.NO_WALL) null else it.snack) }
+        flow = PlaceState(io.embodit.insideorchestra.domain.usecase.PlaceMode.LOCKED, null, pose, moving = false)
+        OrchLog.i("PLACE (locked) anchor=${OrchLog.pos(pose.anchor)} yaw=${OrchLog.f(Math.toDegrees(pose.yaw.toDouble()).toFloat(), 1)} scale=${pose.scale} snapped=${s.snapped}")
+        set { it.copy(room = Room.PLACED, pose = pose, home = pose, transport = if (clock.t > 0.01f) Transport.PAUSED else Transport.SEATED, snapped = false, tooClose = false, noWall = false, planesOn = true, marker = false, placeMoving = false, snack = if (it.snack?.kind == SnackKind.SNAPPED || it.snack?.kind == SnackKind.NO_WALL) null else it.snack) }
         wallJob?.cancel()
         effect(OrchUiEffect.Recalibrate)
         planesJob?.cancel()
@@ -441,7 +477,26 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
         effect(OrchUiEffect.Recalibrate)
     }
 
+    /** [Move orchestra] (side panel / More menu): unlocks into placing, the ghost starting where it stood. */
+    private fun moveOrchestra() {
+        val s = _state.value
+        if (!s.room.placed || s.pose == null) {
+            replace()
+            return
+        }
+        if (flow.locked.not()) flow = PlaceState(io.embodit.insideorchestra.domain.usecase.PlaceMode.LOCKED, null, s.pose)
+        val pose = s.pose
+        step(PlaceInput.Move)
+        if (s.transport == Transport.PLAYING) pause("move")
+        OrchLog.i("MOVE start from=${OrchLog.pos(pose.anchor)}")
+        noWallShown = false
+        set { it.copy(room = Room.PLACING, solo = null, cardFamily = null, menuOpen = false, focusSeat = null, near = null, moving = false, planesOn = true, snapped = false, tooClose = false, forceWall = false, marker = true, placeMoving = true) }
+        effect(OrchUiEffect.StartMove(pose))
+        armWallTimer()
+    }
+
     private fun replace() {
+        step(PlaceInput.Reset)
         val s = _state.value
         if (s.transport == Transport.PLAYING) pause("replace")
         OrchLog.i("REPLACE")
@@ -557,7 +612,10 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
             "menu" -> set { it.copy(menuOpen = on) }
             "fmute" -> Family.of(value)?.let { onEvent(OrchEvent.FamilyMuteClicked(it)) } ?: set { it.copy(mutedFamilies = emptySet()) }
             "info" -> Family.of(value)?.let { onEvent(OrchEvent.FamilyInfoClicked(it)) } ?: set { it.copy(cardFamily = null) }
-            "atmarker" -> onEvent(OrchEvent.PlaceAtMarkerClicked)
+            "atmarker", "confirm" -> onEvent(OrchEvent.PlaceAtMarkerClicked)
+            "move" -> onEvent(OrchEvent.MoveOrchestraClicked)
+            "cancel" -> onEvent(OrchEvent.MoveCancelClicked)
+            "unmark" -> onEvent(OrchEvent.ReplaceMarkerClicked)
             "recall" -> onEvent(OrchEvent.SideRecallClicked)
             "sidedrag" -> {
                 val (dx, dy) = value.split(',').map { it.trim().toFloatOrNull() ?: 0f }.let { (it.getOrElse(0) { 0f }) to (it.getOrElse(1) { 0f }) }

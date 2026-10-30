@@ -113,6 +113,8 @@ fun OrchScreen() {
                 is OrchUiEffect.AudioSeek -> scene.audioSeek(effect.s)
                 OrchUiEffect.AudioRetry -> scene.audioRetry()
                 OrchUiEffect.RecallSide -> scene.recallSide()
+                is OrchUiEffect.StartMove -> scene.startMove(effect.pose)
+                OrchUiEffect.ClearMarker -> scene.clearMarker()
             }
         }
     }

@@ -1,0 +1,173 @@
+{
+ "id": "morning-mood",
+ "titleZh": "晨景",
+ "titleEn": "Morning Mood",
+ "composerZh": "格里格",
+ "composerEn": "Grieg",
+ "year": 1875,
+ "durationS": 81.0,
+ "parts": [
+  "V1",
+  "V2",
+  "VA",
+  "VC",
+  "CB",
+  "FL",
+  "OB",
+  "CL",
+  "BSN",
+  "HN",
+  "TPT",
+  "TBN",
+  "TUBA",
+  "TIMP",
+  "BD"
+ ],
+ "envelopeRate": 20,
+ "passes": [
+  {
+   "startS": 0.0,
+   "bpm": 90,
+   "captionZh": "长笛吹出日出的旋律，弦乐轻轻铺着",
+   "captionEn": "The flute plays the sunrise tune over soft strings",
+   "focus": "ww",
+   "pass": 0
+  },
+  {
+   "startS": 12.0,
+   "bpm": 90,
+   "captionZh": "双簧管接过来，同样的旋律再唱一遍",
+   "captionEn": "The oboe answers with the same tune",
+   "focus": "ww",
+   "pass": 1
+  },
+  {
+   "startS": 24.0,
+   "bpm": 90,
+   "captionZh": "长笛和双簧管又一来一回，太阳升高了一点",
+   "captionEn": "Flute and oboe trade it again; the sun climbs a little",
+   "focus": "ww",
+   "pass": 2
+  },
+  {
+   "startS": 48.0,
+   "bpm": 90,
+   "captionZh": "弦乐全体把旋律唱得又宽又亮，圆号和大管托着",
+   "captionEn": "All the strings sing it broad and bright; horns and bassoons underneath",
+   "focus": "str",
+   "pass": 3
+  },
+  {
+   "startS": 72.0,
+   "bpm": 90,
+   "captionZh": "最后长笛轻轻再吹一句，像早晨安静下来",
+   "captionEn": "At the end the flute plays it once more, quietly",
+   "focus": "ww",
+   "pass": 4
+  }
+ ],
+ "rests": {
+  "vln": [
+   [
+    0.0,
+    24.0
+   ],
+   [
+    78.0,
+    81.0
+   ]
+  ],
+  "vla": [
+   [
+    78.0,
+    81.0
+   ]
+  ],
+  "vc": [
+   [
+    78.0,
+    81.0
+   ]
+  ],
+  "cb": [
+   [
+    0.0,
+    36.0
+   ],
+   [
+    71.95,
+    81.0
+   ]
+  ],
+  "ww": [
+   [
+    75.0,
+    81.0
+   ]
+  ],
+  "hn": [
+   [
+    0.0,
+    48.0
+   ],
+   [
+    71.95,
+    74.0
+   ],
+   [
+    78.0,
+    81.0
+   ]
+  ],
+  "tpt": [
+   [
+    0.0,
+    81.0
+   ]
+  ],
+  "lbr": [
+   [
+    0.0,
+    60.0
+   ],
+   [
+    71.95,
+    81.0
+   ]
+  ],
+  "timp": [
+   [
+    0.0,
+    60.0
+   ],
+   [
+    60.75,
+    81.0
+   ]
+  ],
+  "bd": [
+   [
+    0.0,
+    81.0
+   ]
+  ]
+ },
+ "families": {
+  "str": {
+   "zh": "先轻轻铺着长音，后来全体弦乐把旋律唱得又宽又亮。",
+   "en": "They lay soft long notes first; later all the strings sing the tune broad and bright."
+  },
+  "ww": {
+   "zh": "长笛和双簧管一来一回地吹日出的旋律。",
+   "en": "Flute and oboe trade the sunrise tune back and forth."
+  },
+  "br": {
+   "zh": "圆号在后半段托着和声，像太阳完全升起来。",
+   "en": "Horns hold the harmony in the second half, as the sun fully rises."
+  },
+  "perc": {
+   "zh": "只有一下很轻的定音鼓。",
+   "en": "Only one soft timpani stroke."
+  }
+ }
+}

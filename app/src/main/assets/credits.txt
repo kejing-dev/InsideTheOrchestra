@@ -1,0 +1,16 @@
+Inside the Orchestra — credits / 致谢
+
+Instrument sounds / 乐器音色
+  GeneralUser GS v2.0.3 by S. Christian Collins — https://www.schristiancollins.com
+  License: "You may use GeneralUser GS without restriction for your own music creation, private or commercial."
+  Full text: LICENSE-GeneralUser-GS.txt (this folder). The bank itself is not shipped; only the audio rendered with it.
+
+Music / 曲目 (all public domain; arrangements by Embodit for this app)
+  Grieg — In the Hall of the Mountain King (1875)
+  Grieg — Morning Mood (1875)
+  Beethoven — Symphony No. 9, finale theme "Ode to Joy" (1824)
+  Pachelbel — Canon in D (c. 1690)
+  J. Strauss II — The Blue Danube (1867)
+  Dvořák — Symphony No. 9 "From the New World", Largo (1893)
+
+Rendering: tools/make_music.py + tools/repertoire.py (TinySoundFont via the tinysoundfont Python package).

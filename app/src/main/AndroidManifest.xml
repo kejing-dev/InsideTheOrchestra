@@ -46,6 +46,7 @@
         <activity
             android:name=".platform.EyePermissionActivity"
             android:exported="false"
+            android:excludeFromRecents="true"
             android:theme="@style/Theme.Orchestra" />
     </application>
 

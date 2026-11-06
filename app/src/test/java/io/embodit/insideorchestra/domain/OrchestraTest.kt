@@ -123,7 +123,7 @@ class OrchestraTest {
 
     @Test
     fun pieceAssetsParse() {
-        val assets = listOf(File("src/main/assets"), File("app/src/main/assets")).first { File(it, "piece.json").exists() }
+        val assets = listOf(File("src/main/assets/pieces/mountain-king"), File("app/src/main/assets/pieces/mountain-king")).first { File(it, "piece.json").exists() }
         val piece = Piece.parse(File(assets, "piece.json").readText(), File(assets, "parts.bin").readBytes())
         assertEquals(11, piece.passes.size)
         assertEquals(5.71f, piece.passes[1].startS, 0.05f)

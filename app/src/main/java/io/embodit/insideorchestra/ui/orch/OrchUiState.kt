@@ -19,6 +19,13 @@ enum class LanguagePref { SYSTEM, ZH, EN }
 
 enum class AudioState { LOADING, READY, FAILED }
 
+/** v0.1.5 window pages (system TabBar, one Planar window): play, pieces, sections, instruments, then settings. */
+const val PAGE_PLAY = "play"
+const val PAGE_PIECES = "pieces"
+const val PAGE_SECTIONS = "sections"
+const val PAGE_LEARN = "learn"
+const val SETTINGS_PAGE = "settings"
+
 /**
  * Solo (S7): [stems] play, the others fall to 8 %. [seatId] = the musician that was pinched (null when a capsule
  * started a whole-family solo); [item] = the card line highlighted first (null = default order).
@@ -61,7 +68,6 @@ data class OrchUiState(
     val solo: Solo? = null,
     val focusSeat: String? = null,
     val near: Near? = null,
-    val menuOpen: Boolean = false,
     val captionsOn: Boolean = true,
     val language: LanguagePref = LanguagePref.SYSTEM,
     val english: Boolean = false,
@@ -77,8 +83,8 @@ data class OrchUiState(
     val pass: Int = 0,
     /** Bumped when a caption starts: its focus zone breathes once. */
     val captionSerial: Int = 0,
-    /** v0.1.1: the card opened from a section bar's [Info] without a solo (null = no such card). */
-    val cardFamily: Family? = null,
+    /** v0.1.5: the family shown on the Instruments page (the pointed / soloed one, or picked there). */
+    val cardFamily: Family = Family.STR,
     /** v0.1.1: sections muted from their bars. */
     val mutedFamilies: Set<Family> = emptySet(),
     /** v0.1.1 (D1 "move to marker"): a floor marker has been set while placing. */
@@ -90,14 +96,20 @@ data class OrchUiState(
      * stage floor) around the orchestra inside the same Mixed Stage; MR = passthrough. Placing is the same in both.
      */
     val vr: Boolean = false,
-    /** v0.1.4 master volume 0..1 (side panel; snaps at 50 / 75 / 100 %), remembered. */
+    /** v0.1.5 master volume 0..1 (Play page; snaps at 低 / 中 / 高 = 35 / 70 / 100 %), remembered; default 高. */
     val masterVol: Float = 1f,
-    /** v0.1.4 per-section volume 0..1 (section bars; same snaps). */
+    /** Per-section volume 0..1 (Sections page; same snaps). */
     val familyVol: Map<Family, Float> = Family.entries.associateWith { 1f },
+    /** v0.1.5: the loaded piece (assets/pieces/<id>). */
+    val pieceId: String = "",
+    /** v0.1.5: the window page shown ([PAGE_PLAY] ... [SETTINGS_PAGE]). */
+    val page: String = PAGE_PLAY,
+    /** D44: a piece was picked while another is in progress; the confirm row is open on the Pieces page. */
+    val pendingPiece: String? = null,
+    /** D26: [Exit app] was pressed once; the confirm row is open on the Settings page. */
+    val exitConfirm: Boolean = false,
     /** v0.1.2: placing was opened with [Move orchestra] ([Cancel] shows). */
     val placeMoving: Boolean = false,
-    /** D21: the world-fixed side panel has been out of view for a while: the small [Call back] pill shows. */
-    val sideLost: Boolean = false,
     // ---- debug
     val freeze: Boolean = false,
     val forcedNear: Boolean = false,
@@ -112,9 +124,6 @@ data class OrchUiState(
     val placing: Boolean
         get() = room == Room.PLACING
 
-    /** The family the card shows: the solo's, else the one opened from a bar's [Info]. */
-    val cardShown: Family?
-        get() = if (!room.placed) null else solo?.family ?: cardFamily
 
     /** Design state id for logs and QA (room state plus overlays). */
     val stateId: String
@@ -146,13 +155,15 @@ data class OrchUiState(
                 focusSeat?.let { "S6:$it" },
                 solo?.let { "S7:${it.family.id}${if (it.wholeFamily) "" else ":" + it.stems.joinToString("+") { s -> s.id }}" },
                 near?.let { if (it.podium) "S8:podium" else "S8:${it.stem?.id}" },
-                if (menuOpen) "S10" else null,
+                if (page != PAGE_PLAY) "page:$page" else null,
+                if (exitConfirm) "S10:exit" else null,
                 if (snack?.kind == SnackKind.CAPTION) "S11:${snack.pass}" else null,
                 if (scale < 1f) "S12" else null,
                 if (audio == AudioState.FAILED) "S15" else null,
                 if (english) "S16" else null,
                 if (moving) "S19" else null,
-                cardFamily?.let { "card:${it.id}" },
+                if (page == PAGE_LEARN) "card:${cardFamily.id}" else null,
+                "piece:$pieceId",
                 if (mutedFamilies.isNotEmpty()) "fmute:" + mutedFamilies.joinToString("+") { it.id } else null,
                 if (marker) "marker" else null,
                 if (vr) "vr" else null,
@@ -194,8 +205,14 @@ sealed interface OrchUiEffect {
     /** Load the stems again (S15 retry). */
     data object AudioRetry : OrchUiEffect
 
-    /** D21: put the side panel back at its designed place in front of the user, now. */
-    data object RecallSide : OrchUiEffect
+    /** D21 "Bring here": the system window closes and opens again in front of the user (when the head is level). */
+    data object BringWindow : OrchUiEffect
+
+    /** v0.1.5 "回到指挥台": the orchestra moves so the user stands on the podium, the players in front. */
+    data object Podium : OrchUiEffect
+
+    /** v0.1.5: release the stems and load this piece's. */
+    data class LoadPiece(val id: String) : OrchUiEffect
 
     /** v0.1.2 [Move orchestra]: the ghost starts where the orchestra stood (marker at its podium front, same turn). */
     data class StartMove(val pose: io.embodit.insideorchestra.domain.usecase.OrchPose) : OrchUiEffect

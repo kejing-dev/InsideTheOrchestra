@@ -48,6 +48,12 @@ import io.embodit.insideorchestra.ui.orch.OrchViewModel
 import io.embodit.insideorchestra.ui.orch.Room
 import io.embodit.insideorchestra.ui.orch.Transport
 import io.embodit.insideorchestra.ui.orch.debug.OrchProbe
+import io.embodit.insideorchestra.ui.window.WindowCtl
+import com.pico.spatial.core.ecs.CollisionComponent
+import com.pico.spatial.core.ecs.DirectionalLightComponent
+import com.pico.spatial.core.ecs.InteractableComponent
+import com.pico.spatial.core.ecs.resource.PhysicsMaterialResource
+import com.pico.spatial.core.ecs.resource.ShapeResource
 import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.abs
@@ -75,8 +81,8 @@ class OrchFrameSystem : System() {
 
 /**
  * The 3D side of the app: the orchestra (23 Tripo musicians, rings, zones, podium, ten stem sources), its placing
- * ghost and snap outlines, the virtual room, the name tag, the card's leader, the ten stems' audio and the
- * placement of the pre-built panels. Compose state arrives through [render] (idempotent); everything per frame
+ * ghost and snap outlines, the virtual room, the name tag, the ten stems' audio and the one small Stage chip
+ * ("打开面板" / "平视前方"); every other 2D control lives in the system window (v0.1.5, D8 / D21). Compose state arrives through [render] (idempotent); everything per frame
  * (ghost, pointing and focus, stick, drag, pull / home animations, near listening, BeatMap rings and sway, audio
  * mix and clamps) happens in [onFrame], never through recomposition. Everything started in [attach] is stopped in
  * [detach]. Main thread only.
@@ -104,7 +110,12 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
     private var contentProbe: Entity? = null
     private var materials: SceneMaterials? = null
     private var shared: SharedResources? = null
-    private var colliders: PlaneColliders? = null
+    /**
+     * D24 (v0.1.5): no colliders on real planes or a room shell any more; one app-owned invisible floor slab under the
+     * user catches the pinch / click that sets the marker, only while placing.
+     */
+    private var floorCatcher: Entity? = null
+    private var keyLight: Entity? = null
     private var rig: PanelRig? = null
     private var orch: OrchestraView? = null
     private val templates = HashMap<String, Entity>()
@@ -114,7 +125,6 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
     private var tagMaterial: Material? = null
     private var tagKey: String? = null
     private var tagMesh: MeshResource? = null
-    private var leader: Strip? = null
     private var outlines = ArrayList<Entity>()
     private var outlineMeshes: Pair<MeshResource, MeshResource>? = null
     private var vroomGrid: Entity? = null
@@ -122,15 +132,14 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
     private var vroomKey: String? = null
     private var attached = false
 
-    private val follower = Follower("control", Follower.MAIN_OFFSET, MAIN_HALF_EXTENTS, Follower.MAIN_LEAN)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var buildJob: Job? = null
 
     private var ui = OrchUiState()
     private var head = HeadPose(Vec3.ZERO, Quat4.IDENTITY)
     private var hasHead = false
-    private var lastPanelPressMs = NEVER
-    private var panelPressed = false
+    private var headValidSinceMs = NEVER
+    private var autoPlaceSent = false
     private var inBackground = false
     private var lastFrameMs = NEVER
     private var frameGapMs = 0L
@@ -155,12 +164,6 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
     private var cursor: Entity? = null
     private var markerDot: Entity? = null
     private var reportedHeadPointer: Boolean? = null
-
-    /** D21: the side panel's world position (null until the first head pose); never follows the head. */
-    private var sidePos: Vec3? = null
-    private var sideDragging = false
-    private var sideAwaySinceMs = NEVER
-    private var reportedSideLost = false
     private var ghostYaw = 0f
     private var userTurned = false
     private var held: SnapFrame? = null
@@ -200,14 +203,6 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
     private var finaleMs = NEVER
     private var captionSeen = 0
     private var captionStartMs = NEVER
-    private var cardKey: Any? = null
-    private var cardHead: Vec3? = null
-    private var cardTarget: String? = null
-
-    fun onPanelPointer(pressed: Boolean) {
-        panelPressed = pressed
-        lastPanelPressMs = SystemClock.elapsedRealtime()
-    }
 
     // =========================================================================================
     // lifecycle
@@ -233,15 +228,8 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         OrchLog.i("STAGE root offset=${OrchLog.pos(offset.domain())}")
         val rig = PanelRig(root) { id, shown -> panelShown[id] = shown }
         this.rig = rig
-        for (id in PanelSpec.pool) {
-            val (w, h) = PanelSpec.size(id)
-            when (id) {
-                PanelSpec.SNACK -> rig.head(id, SNACK_HEAD_OFFSET, PanelSpec.SNACK_SCALE, w, h)
-                PanelSpec.RECALL -> rig.head(id, RECALL_HEAD_OFFSET, PanelSpec.RECALL_SCALE, w, h)
-                else -> rig.world(id, w, h)
-            }
-        }
-        rig[PanelSpec.CARD]?.autoFace = true
+        val (cw, ch) = PanelSpec.CHIP_SIZE
+        rig.head(PanelSpec.CHIP, CHIP_HEAD_OFFSET, PanelSpec.CHIP_SCALE, cw, ch)
         headTracker.start()
         eyes.start()
         controller.start()
@@ -249,9 +237,7 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         OrchGraph.autoPlacement = { scale -> autoPose(scale) }
         OrchGraph.ghostPlacement = { placeablePose() }
         OrchGraph.debugMarker = { d -> debugMarker(d) }
-        OrchGraph.sideDrag = { dx, dy -> if (dx.isNaN()) endSideDrag() else dragSide(dx, dy) }
         bindPanels(attachments)
-        follower.reset()
         syncPlanes(ui)
         buildJob =
             scope.launch {
@@ -274,10 +260,21 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         val m = SceneMaterials(sh, soft, glow)
         materials = m
         frame()
-        colliders = PlaneColliders(root).also {
-            it.buildBackstop()
-            planeTracker.all.forEach(it::upsert)
-        }
+        floorCatcher =
+            Entity().named("floorCatcher").also {
+                // gate:allow geometry invisible floor slab (no mesh): the pinch target for the placing marker
+                it.components.set(CollisionComponent(collisionShape = listOf(ShapeResource.createBox(com.pico.spatial.core.math.Vector3(CATCHER_M, 0.02f, CATCHER_M))), physicsMaterial = PhysicsMaterialResource()))
+                it.components.set(InteractableComponent())
+                root.addChild(it)
+                it.enabled = false
+            }
+        // B24: a warm key light from above-front-left with shadows (MR; VR adds the hall's own lights)
+        keyLight =
+            Entity().named("keyLight").also {
+                it.components.set(DirectionalLightComponent(KEY_COLOR, KEY_LUX, true))
+                root.addChild(it)
+                it.setLocal(rotation = Quat4.fromTo(Vec3(0f, 0f, -1f), KEY_DIR.normalized()))
+            }
         frame()
         val ring = sh.keep(Meshes.ring(0.19f, 0.275f, "ring"))
         frame()
@@ -320,7 +317,6 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         cursor = ModelEntity(sh.keep(Meshes.ring(0.10f, 0.14f, "cursor")), m.tape).named("cursor").also { root.addChild(it); it.enabled = false }
         markerDot = ModelEntity(sh.keep(Meshes.ring(0.0f, 0.12f, "marker")), m.podiumDot).named("marker").also { root.addChild(it); it.enabled = false }
         tagMesh = sh.keep(Meshes.quadUv("tag"))
-        leader = Strip(root, sh.keep(MeshFactory.unitBand("leader")), m.tape, "leader")
         frame()
         attached = true
         OrchLog.i("SCENE attached build_ms=${SystemClock.elapsedRealtime() - t0}")
@@ -352,7 +348,7 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
 
     private suspend fun loadAudio(forceFail: Boolean) {
         val view = orch ?: return
-        val ok = audio.load(view.sources, forceFail)
+        val ok = audio.load(view.sources, vm.piece.id, forceFail)
         if (attached) sink(OrchEvent.AudioLoaded(ok))
         recalibrate()
         if (ok && ui.transport == Transport.PLAYING && !ui.freeze) audio.play(vm.clock.t)
@@ -382,7 +378,6 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         OrchGraph.autoPlacement = null
         OrchGraph.ghostPlacement = null
         OrchGraph.debugMarker = null
-        OrchGraph.sideDrag = null
         main.removeCallbacksAndMessages(null)
         audio.release()
         planeTracker.stop()
@@ -392,10 +387,8 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         panelShown.clear()
         runCatching { rig?.release() }
         orch?.destroy()
-        leader?.destroy()
         outlines.forEach { runCatching { it.destroy(true) } }
         outlines.clear()
-        colliders?.clear()
         templates.clear()
         runCatching { stageRoot?.destroy(true) }
         runCatching { contentProbe?.destroy(true) }
@@ -406,7 +399,8 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         contentProbe = null
         content = null
         materials = null
-        colliders = null
+        floorCatcher = null
+        keyLight = null
         rig = null
         orch = null
         tag = null
@@ -415,6 +409,8 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         vroomWall = null
         vroomKey = null
         hasHead = false
+        headValidSinceMs = NEVER
+        autoPlaceSent = false
         lastPlaneCount = -1
         OrchLog.i("SCENE detached")
     }
@@ -462,8 +458,7 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
             captionStartMs = SystemClock.elapsedRealtime()
         }
         if (previous.scale != state.scale || previous.wallMin != state.wallMin || previous.forceWall != state.forceWall || previous.room3 != state.room3 || previous.virtualRoom != state.virtualRoom) framesKey = ""
-        if (state.cardShown == null) cardKey = null
-        syncPanels(state)
+        floorCatcher?.enabled = placing
     }
 
     fun onForeground(foreground: Boolean) {
@@ -475,7 +470,8 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         if (stageRoot == null) return
         val want = state.planesOn && !state.background && !state.planesBlocked
         if (want && !planeTracker.running) {
-            val ok = planeTracker.start(PlaneTracker.Listener { id, surface, _ -> if (surface != null) colliders?.upsert(surface) else colliders?.remove(id) })
+            // D24: the planes only tell the floor height and the walls to snap to; nothing on them takes taps or rays
+            val ok = planeTracker.start(PlaneTracker.Listener { _, _, _ -> })
             if (!ok && !planesFailed) {
                 planesFailed = true
                 sink(OrchEvent.PlaneTrackingFailed)
@@ -500,19 +496,6 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         stickRate = 0f
     }
 
-    private fun syncPanels(state: OrchUiState) {
-        val rig = rig ?: return
-        if (state.room.placed) rig[PanelSpec.PLACING]?.hide() else rig[PanelSpec.CONTROL]?.hide()
-        if (!state.menuOpen) rig[PanelSpec.MENU]?.hide()
-        if (state.cardShown == null) {
-            rig[PanelSpec.CARD]?.hide()
-            leader?.hide()
-        }
-        if (!state.room.placed || state.background) for (id in PanelSpec.BARS) rig[id]?.hide()
-        val snack = rig[PanelSpec.SNACK]
-        if (state.snack != null) snack?.show(null, null) else snack?.hide()
-    }
-
     // =========================================================================================
     // effects from the ViewModel
     // =========================================================================================
@@ -525,9 +508,30 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
 
     fun audioSeek(s: Float) = audio.seek(s)
 
+    /** v0.1.5: a new piece: the stems are released and the new ones loaded (the ViewModel already reset the clock). */
+    fun loadPiece(id: String) {
+        scope.launch {
+            audio.unloadPiece()
+            OrchLog.i("AUDIO piece=$id")
+            loadAudio(false)
+        }
+    }
+
+    /**
+     * v0.1.5 "回到指挥台" (user 2026-11-05: "离近了就没法回到指挥台"): the orchestra slides so the user stands on the
+     * podium centre again, the players in front along the current level heading.
+     */
+    fun toPodium() {
+        val pose = currentPose() ?: return
+        if (!hasHead) return
+        val to = HeadFrame.podiumAt(head.position, head.rotation, pose.anchor.y, pose.scale)
+        OrchLog.i("PODIUM to anchor=${OrchLog.pos(to.anchor)} yaw=${OrchLog.f(Math.toDegrees(to.yaw.toDouble()).toFloat(), 1)}")
+        animate(to)
+    }
+
     fun audioRetry() {
         scope.launch {
-            audio.release()
+            audio.unloadPiece()
             loadAudio(false)
         }
     }
@@ -652,11 +656,10 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         rig.onFrame(now)
         rig.stowBehind(head.view)
         val state = ui
-        // D21 (2026-10-28 user: "尽量用固定且可以拖动位置的 UI"): the side panel is put at its designed place once (first
-        // real head pose, or [Call back]) and then stays fixed in the room; it is moved only by its drag handle
-        if (hasHead && head.plausible && sidePos == null) placeSideNow(now)
-        sideLostFrame(state, now)
-        placeFamily(state, rig)
+        // D9: the system window opens square to the gaze, so every open waits for a level head (native-window-move §7.9)
+        val valid = hasHead && head.plausible
+        WindowCtl.stepGate(now, if (valid) HeadFrame.pitchDeg(head.rotation) else null)
+        chipFrame(rig, now)
         if (!attached) return
 
         vm.tick(dt, audio.medianS)
@@ -664,6 +667,7 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         syncFloor(state)
         syncVirtualRoom(state)
         syncHall(state, now, dt)
+        autoPlaceFrame(state, now, valid)
         if (state.room == Room.PLACING) {
             ghostFrame(state, now, dt)
             triggerFrame()
@@ -675,8 +679,6 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
             pointFrame(state, now)
             nearFrame(state, now)
             musiciansFrame(state, now)
-            barsFrame(state, rig)
-            cardFrame(state, rig)
         } else {
             orch?.glowAt(null)
             tag?.enabled = false
@@ -694,88 +696,35 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         rig.faceViewer(head.position)
     }
 
-    /** The control (or placing) panel rides on the lazy follow; the menu pops up above it. */
-    private fun placeFamily(state: OrchUiState, rig: PanelRig) {
-        if (!hasHead) return
-        val at = sidePos ?: return
-        val k = PanelSpec.MAIN_SCALE
-        val shownId = if (state.room.placed) PanelSpec.CONTROL else PanelSpec.PLACING
-        val slot = rig[shownId] ?: return
-        // world fixed, turned to the user (yaw + pitch, PanelRig's facing rule)
-        slot.autoFace = true
-        if (!slot.shown || slot.position.distanceTo(at) > 1e-4f || slot.scale != k) slot.show(at, k)
-        val rot = slot.rotation
-        val (hw, hh) = PanelSpec.halfM(shownId, k)
-        if (state.menuOpen) {
-            val mk = PanelSpec.MENU_SCALE
-            val (mw, mh) = PanelSpec.halfM(PanelSpec.MENU, mk)
-            rig[PanelSpec.MENU]?.place(at + rot.rotate(Vec3(hw - mw, hh + 0.014f + mh, 0.014f)), rot, mk)
+    /**
+     * The Stage chip (head-locked, 18 degrees below the view centre): "打开面板" while the window is closed or
+     * minimised, "平视前方 / 面板就出来" while an open waits for a level head. Nothing else 2D lives in the Stage.
+     */
+    private fun chipFrame(rig: PanelRig, now: Long) {
+        val slot = rig[PanelSpec.CHIP] ?: return
+        val want = WindowCtl.levelHint || WindowCtl.chipWanted(now)
+        if (want && !slot.shown) slot.show(null, null) else if (!want && slot.shown) slot.hide()
+    }
+
+    /**
+     * v0.1.5 start (user: "默认就让用户在指挥台"): with a plausible head for [AUTO_PLACE_MS] (the first frames can be
+     * all zero, sign-hands lesson) and a floor (real, or the virtual one after the 5 s timeout), the user is put on
+     * the podium once; afterwards only [Move orchestra] / [Back to podium] move it.
+     */
+    private fun autoPlaceFrame(state: OrchUiState, now: Long, valid: Boolean) {
+        if (!valid) {
+            headValidSinceMs = NEVER
+            return
         }
-        val recall = rig[PanelSpec.RECALL]
-        if (state.sideLost) recall?.show(null, null) else recall?.hide()
-    }
-
-    /** The side panel at its designed place for the head of this moment: 40 degrees left, 20 down, 0.7 m (D9). */
-    private fun placeSideNow(now: Long) {
-        follower.reset()
-        follower.follow(head, planeTracker.all, planeTracker.count, now, false)
-        sidePos = follower.pose.position
-        sideAwaySinceMs = NEVER
-        OrchLog.i("SIDE placed at=${OrchLog.pos(sidePos)}")
-    }
-
-    /** [Call back] (More menu / the pill): the side panel straight ahead, 15 degrees down, 0.9 m (D21); fixed again. */
-    fun recallSide() {
-        if (!hasHead) return
-        val h = HeadFrame.heading(head.rotation)
-        sidePos = head.position + h * RECALL_AHEAD_M + Vec3(0f, -RECALL_DOWN_M, 0f)
-        sideAwaySinceMs = NEVER
-        OrchLog.i("SIDE recalled at=${OrchLog.pos(sidePos)}")
-        if (reportedSideLost) {
-            reportedSideLost = false
-            sink(OrchEvent.SideLost(false))
-        }
-    }
-
-    /** Drag handle: [dxDp] / [dyDp] dp of the panel's own plane (x right, y down), kept 0.4 - 2.5 m from the head. */
-    fun dragSide(dxDp: Float, dyDp: Float) {
-        val at = sidePos ?: return
-        val slot = rig?.get(if (ui.room.placed) PanelSpec.CONTROL else PanelSpec.PLACING) ?: return
-        if (!sideDragging) {
-            sideDragging = true
-            OrchLog.i("SIDE drag start")
-        }
-        val m = PanelRig.DP_M * slot.scale
-        val right = slot.rotation.rotate(Vec3.RIGHT)
-        val up = slot.rotation.rotate(Vec3.UP)
-        var next = at + right * (dxDp * m) - up * (dyDp * m)
-        val off = next - head.position
-        val d = off.length
-        if (d > 1e-3f) next = head.position + off * (d.coerceIn(SIDE_MIN_M, SIDE_MAX_M) / d)
-        sidePos = next
-    }
-
-    fun endSideDrag() {
-        if (!sideDragging) return
-        sideDragging = false
-        OrchLog.i("SIDE drag end at=${OrchLog.pos(sidePos)}")
-    }
-
-    /** The pill: the side panel more than 70 degrees off the gaze (or beyond 3 m) for 2 s. Visibility only, not placement. */
-    private fun sideLostFrame(state: OrchUiState, now: Long) {
-        val at = sidePos ?: return
-        if (!hasHead || state.background) return
-        val to = at - head.position
-        val d = to.length
-        val off = if (d < 1e-3f) 0f else Math.toDegrees(kotlin.math.acos((to / d).dot(head.forward).coerceIn(-1f, 1f)).toDouble()).toFloat()
-        val away = off > SIDE_LOST_DEG || d > SIDE_LOST_M
-        if (!away) sideAwaySinceMs = NEVER else if (sideAwaySinceMs == NEVER) sideAwaySinceMs = now
-        val lost = away && sideAwaySinceMs != NEVER && now - sideAwaySinceMs >= SIDE_LOST_MS
-        if (lost != reportedSideLost) {
-            reportedSideLost = lost
-            OrchLog.i("SIDE lost=$lost off=${OrchLog.f(off, 0)}")
-            sink(OrchEvent.SideLost(lost))
-        }
+        if (headValidSinceMs == NEVER) headValidSinceMs = now
+        if (autoPlaceSent || state.pose != null || state.placeMoving || state.marker) return
+        if (state.room != Room.FINDING && state.room != Room.PLACING) return
+        val fy = floorY ?: return
+        if (now - headValidSinceMs < AUTO_PLACE_MS) return
+        autoPlaceSent = true
+        val pose = HeadFrame.podiumAt(head.position, head.rotation, fy, state.scale)
+        OrchLog.i("PODIUM auto head=${OrchLog.pos(head.position)} floor=${OrchLog.f(fy)} anchor=${OrchLog.pos(pose.anchor)}")
+        sink(OrchEvent.AutoPlace(pose))
     }
 
     /** The pointing ray: the controller when it moved in the last 5 s, else the eyes, else the head (design `input.source`). */
@@ -1304,10 +1253,7 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         val pose = currentPose() ?: return
         val ray = pointer(now)
         reportPointer()
-        // UI first (D20): a ray that meets a panel before any musician points at the panel, not the musician
-        val seatHit = hitSeat(pose, ray)
-        val uiT = rig?.let { panelHit(it, ray) }
-        val hit = if (state.forcedHover != null) state.forcedHover else seatHit?.takeIf { uiT == null || it.second < uiT }?.first
+        val hit = if (state.forcedHover != null) state.forcedHover else hitSeat(pose, ray)?.first
         pointedSeat = hit
         if (hit != null) lastHitMs = now
         if (hit != pending) {
@@ -1326,25 +1272,6 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
             OrchLog.i("FOCUS ${next ?: "none"} by=$pointerSource")
             sink(OrchEvent.FocusChanged(next))
         }
-    }
-
-    /** Distance along [ray] (Stage metres) to the nearest shown panel it meets, or null. */
-    private fun panelHit(rig: PanelRig, ray: PointerRay): Float? {
-        var best: Float? = null
-        for (slot in rig.all) {
-            if (!slot.shown || slot.mount != PanelRig.Mount.WORLD) continue
-            val n = slot.rotation.rotate(Vec3(0f, 0f, 1f))
-            val den = n.dot(ray.direction)
-            if (abs(den) < 1e-4f) continue
-            val t = n.dot(slot.position - ray.origin) / den
-            if (t <= 0f) continue
-            val p = ray.origin + ray.direction * t - slot.position
-            val (hw, hh) = PanelSpec.halfM(slot.id, slot.scale)
-            if (abs(p.dot(slot.rotation.rotate(Vec3.RIGHT))) <= hw && abs(p.dot(slot.rotation.rotate(Vec3.UP))) <= hh) {
-                if (best == null || t < best) best = t
-            }
-        }
-        return best
     }
 
     private fun hitSeat(pose: OrchPose, ray: PointerRay): Pair<String, Float>? {
@@ -1367,7 +1294,7 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         return best?.let { it to bestT * pose.scale }
     }
 
-    private fun seatHeight(s: Seat): Float = if (s.model == "bassist") 1.9f else if (s.family == Family.PERC) 1.6f else 1.3f
+    private fun seatHeight(s: Seat): Float = Orchestra.modelHeight(s.model)
 
     private fun slab(o: Vec3, d: Vec3, h: Vec3): Float? {
         var t0 = 0f
@@ -1433,10 +1360,6 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
             if (s.family in state.mutedFamilies) ring = 0.05f
             var opacity = if (inSolo && s.family !in state.mutedFamilies) 1f else SOLO_DIM
             if (headLocal != null && Orchestra.d(headLocal.x, headLocal.z, s.x, s.z) * pose.scale < PlacementUseCase.NEAR_M) opacity = minOf(opacity, NEAR_FADE)
-            // D20: a musician between the eyes and a panel goes see-through and lets the ray through to the panel
-            val covers = coversPanel(pose, s)
-            if (covers) opacity = minOf(opacity, NEAR_FADE)
-            view.setHittable(v, !covers)
             view.seatFrame(v, opacity, ring, ringScale, sway, breath)
         }
         // zones: 12 % base; pointed family 25 %; solo family 30 %, others 5 %; near family 25 %; caption focus breathes once
@@ -1453,53 +1376,6 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         view.glowAt(focusSeat)
         // D14: walking into the orchestra
         tagFrame(state, pose)
-    }
-
-    /**
-     * True when the musician [s] stands in front of a shown panel as seen from the eyes: nearer than the panel and
-     * inside its view cone (panel half diagonal + the musician's radius). Checked every frame (D20).
-     */
-    private fun coversPanel(pose: OrchPose, s: Seat): Boolean {
-        val rig = rig ?: return false
-        if (!hasHead) return false
-        val h = seatHeight(s) * pose.scale
-        val c = pose.toStage(Vec3(s.x, seatHeight(s) * 0.55f, s.z))
-        val toC = c - head.position
-        val dc = toC.length
-        if (dc < 1e-3f) return true
-        val r = maxOf(0.32f * pose.scale, h * 0.5f)
-        for (slot in rig.all) {
-            if (!slot.shown || slot.mount != PanelRig.Mount.WORLD) continue
-            val toP = slot.position - head.position
-            val dp = toP.length
-            if (dc >= dp + 0.05f) continue
-            val (hw, hh) = PanelSpec.halfM(slot.id, slot.scale)
-            val cone = kotlin.math.atan(kotlin.math.sqrt(hw * hw + hh * hh) / dp) + kotlin.math.atan(r / dc)
-            val ang = kotlin.math.acos((toC.dot(toP) / (dc * dp)).coerceIn(-1f, 1f))
-            if (ang < cone) return true
-        }
-        return false
-    }
-
-    /**
-     * The four section bars (v0.1.1): each floats above its section (orchestra coordinates, [BAR_AT]), turned to the
-     * user, sized by distance so it reads the same from anywhere (0.8 - 2.2); within 1 m (level) of the head it
-     * rises 0.3 m and shrinks to 0.8 so it stays above the near musicians and reachable.
-     */
-    private fun barsFrame(state: OrchUiState, rig: PanelRig) {
-        val pose = currentPose() ?: return
-        if (!hasHead || state.background) return
-        for (f in Family.entries) {
-            val slot = rig[PanelSpec.bar(f)] ?: continue
-            val local = BAR_AT.getValue(f)
-            var at = pose.toStage(local)
-            val level = Vec3(at.x - head.position.x, 0f, at.z - head.position.z).length
-            val near = level < BAR_NEAR_M
-            if (near) at = at + Vec3(0f, BAR_RAISE_M, 0f)
-            val d = at.distanceTo(head.position)
-            val k = if (near) BAR_NEAR_SCALE else (d / BAR_UNIT_M).coerceIn(1f, BAR_MAX_SCALE)
-            if (!slot.shown || slot.position.distanceTo(at) > 0.005f || abs(slot.scale - k) > 0.01f) slot.show(at, k)
-        }
     }
 
     /** One name tag: the pointed musician, else the nearest one while near listening (design `nameTag`). */
@@ -1532,64 +1408,6 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         e.enabled = true
     }
 
-    /**
-     * The card (S7): on the head -> musician line, clamp(d - 0.4, 0.6, 1.1) m from the head and 0.25 m to its right,
-     * at eye height; beside the musician when d < 1.0 m. World fixed; re-laid when the solo changes, the orchestra
-     * stopped moving or the head walked 1.5 m. A leader runs from the card's lower edge to the musician's shoulder.
-     */
-    private fun cardFrame(state: OrchUiState, rig: PanelRig) {
-        val family = state.cardShown ?: return
-        val solo = state.solo?.takeIf { it.family == family }
-        val pose = currentPose() ?: return
-        if (!hasHead) return
-        val slot = rig[PanelSpec.CARD] ?: return
-        val stems = solo?.stems ?: family.stems.toSet()
-        val seatId = solo?.seatId ?: Orchestra.seats.filter { it.stem in stems }.minBy { s -> pose.toStage(Vec3(s.x, 0f, s.z)).let { Vec3(it.x - head.position.x, 0f, it.z - head.position.z).length } }.id
-        val seat = Orchestra.seat(seatId) ?: return
-        val key = Triple(solo ?: family, livePose == null, state.pose)
-        val walked = cardHead?.let { Vec3(it.x - head.position.x, 0f, it.z - head.position.z).length > CARD_RELAYOUT_M } ?: true
-        if (key != cardKey || walked || cardTarget != seatId) {
-            if (livePose == null || cardKey == null) {
-                cardKey = key
-                cardHead = head.position
-                cardTarget = seatId
-                val s = pose.toStage(Vec3(seat.x, 0f, seat.z))
-                val toSeat = Vec3(s.x - head.position.x, 0f, s.z - head.position.z)
-                val d = toSeat.length
-                val dir = if (d < 1e-3f) HeadFrame.heading(head.rotation) else toSeat / d
-                val right = Vec3(-dir.z, 0f, dir.x)
-                val wanted =
-                    if (d >= 1.0f) Vec3(head.position.x, head.position.y, head.position.z) + dir * (d - 0.4f).coerceIn(0.6f, 1.1f) + right * 0.25f
-                    else Vec3(s.x, head.position.y, s.z) + right * 0.35f
-                // QA q1-1: a musician far to the side (tuba, basses) put the card 47 degrees off the gaze, out of view;
-                // the card stays within 25 degrees of the level heading (the leader still runs to the musician)
-                val at = keepInView(wanted)
-                slot.show(at, PanelSpec.CARD_SCALE)
-                OrchLog.i("CARD ${family.id} seat=$seatId d=${OrchLog.f(d)} at=${OrchLog.pos(at)}")
-            }
-        }
-        val (_, hh) = PanelSpec.halfM(PanelSpec.CARD, PanelSpec.CARD_SCALE)
-        val shoulder = pose.toStage(Vec3(seat.x, seatHeight(seat) * 0.8f, seat.z))
-        val bottom = slot.position - Vec3(0f, hh, 0f)
-        leader?.setMaterial(materials?.ring?.getValue(seat.family) ?: return)
-        leader?.draw(bottom, shoulder, 0.004f, head.position - bottom)
-    }
-
-    /** Turns [p] about the head's vertical so its level bearing is at most [CARD_MAX_BEARING_RAD] off the heading. */
-    private fun keepInView(p: Vec3): Vec3 {
-        val h = HeadFrame.heading(head.rotation)
-        val v = Vec3(p.x - head.position.x, 0f, p.z - head.position.z)
-        if (v.length < 1e-3f) return p
-        val side = h.x * v.z - h.z * v.x
-        val bearing = kotlin.math.atan2(side, h.dot(v))
-        if (abs(bearing) <= CARD_MAX_BEARING_RAD) return p
-        val turn = (abs(bearing) - CARD_MAX_BEARING_RAD) * kotlin.math.sign(bearing)
-        // bearing > 0 = right of the heading; a turn of +angle about +Y brings a right-hand point back towards it
-        val r = Quat4.axisAngle(Vec3.UP, turn)
-        val q = r.rotate(v)
-        return Vec3(head.position.x + q.x, p.y, head.position.z + q.z)
-    }
-
     /** Group targets (mute x master x focus / solo), the close-up clamps and the sync step (design `audio`). */
     private fun audioFrame(state: OrchUiState, dt: Float) {
         if (audio.status != OrchestraAudio.Status.READY) return
@@ -1607,7 +1425,7 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
                     else -> 1f
                 }
             // v0.1.4: the section's own volume slider on top
-            master * mix * (state.familyVol[s.family] ?: 1f)
+            OUTPUT_TRIM * master * mix * (state.familyVol[s.family] ?: 1f)
         }
         audio.setTargets(targets)
         val pose = currentPose()
@@ -1769,14 +1587,11 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         planeTracker.all.map { p -> "PLANE ${p.label} kind=${p.kind} center=${OrchLog.pos(p.centroid)} normal=${OrchLog.pos(p.normal)} verts=${p.vertices.size}" } +
             frames.mapIndexed { k, f -> "FRAME $k center=${OrchLog.pos(f.center)} yaw=${OrchLog.f(Math.toDegrees(f.yaw.toDouble()).toFloat(), 1)} wall=${OrchLog.f(f.wallLength)}" }
 
-    override fun parkPanel(): String {
-        follower.park(head, planeTracker.all, SystemClock.elapsedRealtime())
-        return "FOLLOW control park requested"
-    }
+    override fun parkPanel(): String = "WINDOW state=${WindowCtl.panelState} (the system window has no app-side park)"
 
     override fun recenter(): String {
-        follower.reset()
-        return "RECENTER panels re-parked"
+        WindowCtl.recall("recenter")
+        return "RECENTER window recall asked"
     }
 
     companion object {
@@ -1805,11 +1620,16 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         private const val SEAT_HALF = 0.31f
         private const val FINALE_MS = 1000L
         private const val CAPTION_BREATH_MS = 1200L
-        private const val CARD_RELAYOUT_M = 1.5f
-        private val CARD_MAX_BEARING_RAD = Math.toRadians(25.0).toFloat()
-        /** D21 [Call back]: 0.9 m at 15 degrees below the level gaze: cos15 * 0.9 ahead, sin15 * 0.9 down. */
-        private const val RECALL_AHEAD_M = 0.8693f
-        private const val RECALL_DOWN_M = 0.2329f
+        /** The start waits this long with a plausible head before putting the user on the podium. */
+        private const val AUTO_PLACE_MS = 1000L
+
+        /** The floor catcher: 30 m square, 2 cm thick, centred on the Stage origin at the floor. */
+        private const val CATCHER_M = 30f
+
+        /** B24 key light: warm, moderate (no blown-out white on the players), from above-front-left of the stage. */
+        private val KEY_COLOR = com.pico.spatial.core.math.Color4(1.0f, 0.93f, 0.82f, 1f)
+        private const val KEY_LUX = 2500f
+        private val KEY_DIR = Vec3(0.35f, -0.8f, -0.5f)
         private const val HALL_FADE_S = 0.8f
         private val WARM = com.pico.spatial.core.math.Color4(1.0f, 0.86f, 0.68f, 1f)
         private val HALL_SPOTS = listOf(Vec3(-3f, 8f, 1.0f), Vec3(0f, 8f, 0.0f), Vec3(3f, 8f, 1.0f))
@@ -1821,32 +1641,10 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
 
         /** VR: the musicians take a quarter of the real-world IBL (the hall's warm lights do the rest). */
         private const val VR_ENV_IBL = 0.25f
-        private const val SIDE_MIN_M = 0.4f
-        private const val SIDE_MAX_M = 2.5f
-        private const val SIDE_LOST_DEG = 70f
-        private const val SIDE_LOST_M = 3f
-        private const val SIDE_LOST_MS = 2000L
 
-        /** The [Call back] pill: 18 degrees below the view centre, 0.8 m away. */
-        private val RECALL_HEAD_OFFSET = Vec3(0f, -0.2472f, -0.7608f)
+        /** The Stage chip: 18 degrees below the view centre, 0.8 m away. */
+        private val CHIP_HEAD_OFFSET = Vec3(0f, -0.2472f, -0.7608f)
 
-        /**
-         * Section bar anchors in orchestra coordinates (v0.1.1): above the strings' violins, the woodwinds, the
-         * trombone / tuba side of the brass and behind-left over the percussion; heights clear of the heads
-         * (seated 1.25 - 1.3 m, double basses 1.9 m, standing percussion 1.6 m) and staggered so no two overlap.
-         */
-        private val BAR_AT: Map<Family, Vec3> =
-            mapOf(
-                Family.STR to Vec3(-0.85f, 1.55f, -1.05f),
-                Family.WW to Vec3(-0.05f, 1.75f, -2.30f),
-                Family.BR to Vec3(1.55f, 2.00f, -1.95f),
-                Family.PERC to Vec3(-0.70f, 2.10f, -3.10f),
-            )
-        private const val BAR_UNIT_M = 1.2f
-        private const val BAR_MAX_SCALE = 2.2f
-        private const val BAR_NEAR_M = 1.0f
-        private const val BAR_RAISE_M = 0.3f
-        private const val BAR_NEAR_SCALE = 0.8f
         private const val TAG_W_M = 0.32f
         private const val TAP_AFTER_DRAG_MS = 300L
         private const val PX_M = 0.0004f
@@ -1854,7 +1652,14 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         private val SWAY_RAD = Math.toRadians(2.0).toFloat()
         private const val SOLO_DIM = 0.4f
         private const val NEAR_FADE = 0.3f
-        private const val BALANCE_FLOOR = 0.5f
+        /** v0.1.5: the podium balance never takes a stem below 0.75 (was 0.5): loudness first. */
+        private const val BALANCE_FLOOR = 0.75f
+
+        /**
+         * v0.1.5 loudness (qa/loudness-v0.1.5.wav, emulator loopback): untrimmed the whole band peaked at -0.1 dBFS with
+         * RMS -7.9 dBFS; 0.6 (-4.4 dB) keeps the peak under -1 dBFS with RMS far above the -20 dBFS floor.
+         */
+        private const val OUTPUT_TRIM = 0.6f
         private const val SOLO_REST = 0.08f
         private const val FOCUS_REST = 0.5f
         private const val CLAMP_M = 0.5f
@@ -1863,10 +1668,5 @@ class OrchScene(private val vm: OrchViewModel, private val sink: (OrchEvent) -> 
         /** Virtual floor: this far below the eyes; virtual back wall this far ahead (design `container.virtualRoom`). */
         private const val VIRTUAL_EYE_M = 1.60f
         private const val VIRTUAL_BACK_M = 4.6f
-
-        private val MAIN_HALF_EXTENTS = listOf(0.17f, 0.1f, 0.01f)
-
-        /** 14 degrees above the view centre, 0.9 m away. */
-        private val SNACK_HEAD_OFFSET = Vec3(0f, 0.2177f, -0.8733f)
     }
 }

@@ -9,11 +9,13 @@ import androidx.lifecycle.viewModelScope
 import io.embodit.insideorchestra.domain.model.Family
 import io.embodit.insideorchestra.domain.model.Orchestra
 import io.embodit.insideorchestra.domain.model.Piece
+import io.embodit.insideorchestra.domain.model.PieceInfo
 import io.embodit.insideorchestra.domain.model.Stem
 import io.embodit.insideorchestra.domain.usecase.PieceClock
 import io.embodit.insideorchestra.domain.usecase.PlaceInput
 import io.embodit.insideorchestra.domain.usecase.PlaceState
 import io.embodit.insideorchestra.domain.usecase.PlacementFlow
+import io.embodit.insideorchestra.domain.usecase.VolumeSnap
 import io.embodit.insideorchestra.platform.OrchGraph
 import io.embodit.insideorchestra.platform.OrchLog
 import java.util.Locale
@@ -34,10 +36,16 @@ import org.json.JSONObject
  */
 class OrchViewModel(private val appContext: Context) : ViewModel() {
 
-    val piece: Piece = loadPiece(appContext)
+    private val prefs: SharedPreferences = appContext.getSharedPreferences("orchestra", Context.MODE_PRIVATE)
+
+    /** v0.1.5: the repertoire (assets/pieces/index.json) and the piece loaded now (remembered). */
+    val pieces: List<PieceInfo> = loadIndex(appContext)
+    var piece: Piece = loadPiece(appContext, pieces.firstOrNull { it.id == prefs.getString("piece", null) }?.id ?: pieces.firstOrNull()?.id ?: "")
+        private set
     val clock = PieceClock(piece.durationS)
 
-    private val prefs: SharedPreferences = appContext.getSharedPreferences("orchestra", Context.MODE_PRIVATE)
+    /** A piece picked from the list starts playing as soon as its stems are loaded. */
+    private var playWhenLoaded = false
     private val _state = MutableStateFlow(initialState())
     val state: StateFlow<OrchUiState> = _state
 
@@ -75,9 +83,11 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
             scale = if (prefs.getFloat("scale", 1f) < 1f) 0.5f else 1f,
             muted = prefs.getBoolean("muted", false),
             vr = prefs.getBoolean("vr", false),
-            masterVol = prefs.getFloat("masterVol", 1f),
+            // v0.1.5: new key, so a quiet level saved by v0.1.4 does not carry over (default 高)
+            masterVol = prefs.getFloat("masterVol5", VolumeSnap.DEFAULT),
             coachSeen = prefs.getBoolean("coachSeen", false),
             durationS = piece.durationS,
+            pieceId = piece.id,
         )
     }
 
@@ -174,14 +184,7 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
             }
             is OrchEvent.PlaceRequested -> place(event)
             is OrchEvent.MusicianTapped -> musicianTapped(event.seatId)
-            OrchEvent.NothingTapped -> {
-                val s = _state.value
-                when {
-                    s.menuOpen -> set { it.copy(menuOpen = false) }
-                    s.solo != null -> restore("tap-empty")
-                    s.cardFamily != null -> set { it.copy(cardFamily = null) }
-                }
-            }
+            OrchEvent.NothingTapped -> if (_state.value.solo != null) restore("tap-empty")
             is OrchEvent.FamilyMuteClicked -> {
                 val f = event.family
                 val now = _state.value.mutedFamilies.let { if (f in it) it - f else it + f }
@@ -189,11 +192,9 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
                 set { it.copy(mutedFamilies = now) }
             }
             is OrchEvent.FamilyInfoClicked -> {
-                val s = _state.value
-                val open = s.cardShown == event.family
-                OrchLog.i("INFO ${event.family.id} ${if (open) "close" else "open"}")
-                set { it.copy(cardFamily = if (open) null else event.family, solo = if (open || it.solo?.family == event.family) it.solo else null) }
-                if (open && s.solo?.family == event.family) restore("info-close")
+                // v0.1.5: the family's card is the Instruments page of the window
+                OrchLog.i("INFO ${event.family.id}")
+                set { it.copy(cardFamily = event.family, page = PAGE_LEARN) }
             }
             is OrchEvent.MarkerChanged -> {
                 step(if (event.set) PlaceInput.FloorTap(io.embodit.insideorchestra.domain.model.Vec3.ZERO) else PlaceInput.Replace)
@@ -220,33 +221,54 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
             }
             is OrchEvent.PointerChanged -> set { it.copy(headPointer = event.head) }
             is OrchEvent.MasterVolume -> {
-                val v = io.embodit.insideorchestra.domain.usecase.VolumeSnap.snap(event.v)
+                val v = VolumeSnap.snap(event.v)
+                val unmute = event.done && _state.value.muted
                 if (event.done) {
-                    prefs.edit().putFloat("masterVol", v).apply()
+                    prefs.edit().putFloat("masterVol5", v).apply()
+                    if (unmute) prefs.edit().putBoolean("muted", false).apply()
                     OrchLog.i("VOLUME master=${(v * 100).toInt()}%")
                 }
-                set { it.copy(masterVol = v) }
+                // setting a level un-mutes, like turning a knob
+                set { it.copy(masterVol = v, muted = if (unmute) false else it.muted) }
             }
             is OrchEvent.FamilyVolume -> {
-                val v = io.embodit.insideorchestra.domain.usecase.VolumeSnap.snap(event.v)
+                val v = VolumeSnap.snap(event.v)
                 if (event.done) OrchLog.i("VOLUME ${event.family.id}=${(v * 100).toInt()}%")
-                set { it.copy(familyVol = it.familyVol + (event.family to v)) }
+                set { it.copy(familyVol = it.familyVol + (event.family to v), mutedFamilies = if (event.done) it.mutedFamilies - event.family else it.mutedFamilies) }
             }
+            is OrchEvent.PieceSelected -> {
+                val s = _state.value
+                val inProgress = s.room.placed && event.id != piece.id && (s.transport == Transport.PLAYING || s.transport == Transport.PAUSED) && clock.t > IN_PROGRESS_S
+                if (inProgress) {
+                    OrchLog.i("PIECE ask switch=${event.id} at=${OrchLog.f(clock.t)}")
+                    set { it.copy(pendingPiece = event.id) }
+                } else selectPiece(event.id, "panel")
+            }
+            is OrchEvent.PieceSwitchAnswer -> {
+                val id = _state.value.pendingPiece
+                set { it.copy(pendingPiece = null) }
+                if (event.switch && id != null) selectPiece(id, "panel-confirmed")
+            }
+            is OrchEvent.PageSelected -> {
+                OrchLog.i("PAGE ${event.page}")
+                set { it.copy(page = event.page, exitConfirm = false, pendingPiece = null) }
+            }
+            OrchEvent.PodiumClicked -> {
+                OrchLog.i("PODIUM back")
+                effect(OrchUiEffect.Podium)
+            }
+            OrchEvent.BringHereClicked -> {
+                OrchLog.i("WINDOW bring here")
+                effect(OrchUiEffect.BringWindow)
+            }
+            is OrchEvent.AutoPlace -> autoPlace(event.pose)
+            is OrchEvent.ExitAsked -> set { it.copy(exitConfirm = event.show) }
             is OrchEvent.VrSelected -> {
                 prefs.edit().putBoolean("vr", event.vr).apply()
                 OrchLog.i("MODE ${if (event.vr) "vr" else "mr"}")
                 set { it.copy(vr = event.vr) }
             }
-            OrchEvent.SideRecallClicked -> {
-                OrchLog.i("SIDE recall")
-                set { it.copy(menuOpen = false, sideLost = false) }
-                effect(OrchUiEffect.RecallSide)
-            }
-            is OrchEvent.SideLost -> set { it.copy(sideLost = event.lost) }
-            OrchEvent.CardCloseClicked -> {
-                restore("card-close")
-                set { it.copy(cardFamily = null) }
-            }
+            OrchEvent.CardCloseClicked -> restore("card-close")
             is OrchEvent.FocusChanged -> set { it.copy(focusSeat = event.seatId) }
             is OrchEvent.NearChanged -> set { it.copy(near = event.near) }
             is OrchEvent.Moved -> {
@@ -255,7 +277,13 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
                 set { it.copy(pose = event.pose) }
             }
             is OrchEvent.MovingChanged -> set { it.copy(moving = event.moving) }
-            is OrchEvent.AudioLoaded -> set { it.copy(audio = if (event.ok) AudioState.READY else AudioState.FAILED) }
+            is OrchEvent.AudioLoaded -> {
+                set { it.copy(audio = if (event.ok) AudioState.READY else AudioState.FAILED) }
+                if (playWhenLoaded) {
+                    playWhenLoaded = false
+                    if (event.ok && _state.value.room.placed && _state.value.transport != Transport.PLAYING) play("piece")
+                }
+            }
             OrchEvent.PlayClicked -> play("panel")
             OrchEvent.PauseClicked -> pause("panel")
             OrchEvent.RestartClicked -> {
@@ -279,15 +307,11 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
                 OrchLog.i("MUTE mute=${if (m) 1 else 0}")
                 set { it.copy(muted = m) }
             }
-            OrchEvent.MoreClicked -> set { it.copy(menuOpen = !it.menuOpen) }
             OrchEvent.RetryAudioClicked -> {
                 set { it.copy(audio = AudioState.LOADING) }
                 effect(OrchUiEffect.AudioRetry)
             }
-            OrchEvent.HomeClicked -> {
-                set { it.copy(menuOpen = false) }
-                effect(OrchUiEffect.Home)
-            }
+            OrchEvent.HomeClicked -> effect(OrchUiEffect.Home)
             OrchEvent.RestoreClicked -> restore("card")
             OrchEvent.PullClicked -> {
                 val solo = _state.value.solo ?: return
@@ -305,7 +329,9 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
             is OrchEvent.ScaleSelected -> setScale(event.scale)
             OrchEvent.ReplaceClicked -> moveOrchestra()
             OrchEvent.ExitClicked -> {
-                OrchLog.i("EXIT")
+                // D26: asked twice; the confirm row opens on the same Settings page ([ExitAsked])
+                OrchLog.i("EXIT confirmed")
+                set { it.copy(exitConfirm = false) }
                 effect(OrchUiEffect.AudioPause)
                 effect(OrchUiEffect.ExitApp)
             }
@@ -332,6 +358,37 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
     }
 
     private fun Float.round1(): Float = Math.round(this * 10f) / 10f
+
+    /**
+     * v0.1.5 (user 2026-11-05: "默认就让用户在指挥台"): once the head and a floor (real or virtual) are known the scene
+     * offers the pose that puts the user on the podium, the players in front; the app starts there, placed and locked.
+     * [Move orchestra] still opens the placing flow.
+     */
+    private fun autoPlace(pose: io.embodit.insideorchestra.domain.usecase.OrchPose) {
+        val s = _state.value
+        val fresh = s.room == Room.FINDING || (s.room == Room.PLACING && !s.placeMoving && !s.marker)
+        if (!fresh || s.pose != null) return
+        OrchLog.i("PODIUM start: the user stands on the podium")
+        floorJob?.cancel()
+        if (s.room == Room.FINDING) set { it.copy(room = Room.PLACING) }
+        place(OrchEvent.PlaceRequested(pose))
+    }
+
+    /** v0.1.5: [id] from the Pieces page: stop, load its timings and envelopes, then its stems; plays when loaded. */
+    private fun selectPiece(id: String, why: String) {
+        if (id == piece.id && _state.value.audio != AudioState.FAILED) return
+        if (pieces.none { it.id == id }) return
+        val s = _state.value
+        if (s.transport == Transport.PLAYING) pause("piece")
+        piece = loadPiece(appContext, id)
+        clock.load(piece.durationS)
+        lastPass = -1
+        prefs.edit().putString("piece", id).apply()
+        OrchLog.i("PIECE select=$id ($why) duration=${OrchLog.f(piece.durationS)}")
+        playWhenLoaded = s.room.placed
+        set { it.copy(pieceId = id, durationS = piece.durationS, posS = 0f, pass = 0, transport = Transport.SEATED, solo = null, audio = AudioState.LOADING, snack = null, pendingPiece = null) }
+        effect(OrchUiEffect.LoadPiece(id))
+    }
 
     private fun sceneReady() {
         val s = _state.value
@@ -410,10 +467,6 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
     private fun musicianTapped(seatId: String) {
         val s = _state.value
         if (!s.room.placed) return
-        if (s.menuOpen) {
-            set { it.copy(menuOpen = false) }
-            return
-        }
         val seat = Orchestra.seat(seatId) ?: return
         val solo = s.solo
         if (solo != null && !solo.wholeFamily && solo.seatId == seat.id) {
@@ -421,7 +474,8 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
             return
         }
         OrchLog.i("SOLO seat=${seat.id} stem=${seat.stem.id} family=${seat.family.id}")
-        set { it.copy(solo = Solo(seat.family, setOf(seat.stem), seat.id, seat.instrument, wholeFamily = false), cardFamily = null) }
+        // v0.1.5: the card is the window's Instruments page (was a floating card next to the player)
+        set { it.copy(solo = Solo(seat.family, setOf(seat.stem), seat.id, seat.instrument, wholeFamily = false), cardFamily = seat.family, page = PAGE_LEARN) }
         autoPlay(s.transport)
     }
 
@@ -434,7 +488,7 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
             return
         }
         OrchLog.i("SOLO family=${f.id} stems=${f.stems.joinToString("+") { it.id }}")
-        set { it.copy(solo = Solo(f, f.stems.toSet(), null, null, wholeFamily = true), menuOpen = false, cardFamily = null) }
+        set { it.copy(solo = Solo(f, f.stems.toSet(), null, null, wholeFamily = true), cardFamily = f) }
         autoPlay(s.transport)
     }
 
@@ -453,7 +507,7 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
     private fun restore(why: String) {
         if (_state.value.solo == null) return
         OrchLog.i("SOLO none ($why)")
-        set { it.copy(solo = null, cardFamily = null) }
+        set { it.copy(solo = null) }
     }
 
     private fun nearestOf(solo: Solo): String? = solo.stems.firstOrNull()?.let { st -> Orchestra.seats.filter { it.stem in solo.stems }.minByOrNull { it.z * it.z + it.x * it.x }?.id ?: st.id }
@@ -510,7 +564,7 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
         if (s.transport == Transport.PLAYING) pause("move")
         OrchLog.i("MOVE start from=${OrchLog.pos(pose.anchor)}")
         noWallShown = false
-        set { it.copy(room = Room.PLACING, solo = null, cardFamily = null, menuOpen = false, focusSeat = null, near = null, moving = false, planesOn = true, snapped = false, tooClose = false, forceWall = false, marker = true, placeMoving = true) }
+        set { it.copy(room = Room.PLACING, solo = null, focusSeat = null, near = null, moving = false, planesOn = true, snapped = false, tooClose = false, forceWall = false, marker = true, placeMoving = true, page = PAGE_PLAY) }
         effect(OrchUiEffect.StartMove(pose))
         armWallTimer()
     }
@@ -521,7 +575,7 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
         if (s.transport == Transport.PLAYING) pause("replace")
         OrchLog.i("REPLACE")
         noWallShown = false
-        set { it.copy(room = Room.PLACING, solo = null, cardFamily = null, menuOpen = false, focusSeat = null, near = null, moving = false, planesOn = true, snapped = false, tooClose = false, forceWall = false, marker = false) }
+        set { it.copy(room = Room.PLACING, solo = null, focusSeat = null, near = null, moving = false, planesOn = true, snapped = false, tooClose = false, forceWall = false, marker = false, page = PAGE_PLAY) }
         armWallTimer()
     }
 
@@ -629,9 +683,14 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
                 set { it.copy(freeze = on, snack = if (!on) null else it.snack) }
                 if (on) effect(OrchUiEffect.AudioPause) else if (_state.value.transport == Transport.PLAYING) effect(OrchUiEffect.AudioPlay(clock.t))
             }
-            "menu" -> set { it.copy(menuOpen = on) }
+            "menu", "page" -> set { it.copy(page = if (key == "menu") (if (on) SETTINGS_PAGE else PAGE_PLAY) else value, exitConfirm = false) }
+            "pick" -> (value.toIntOrNull()?.let { pieces.getOrNull(it)?.id } ?: value).let { onEvent(OrchEvent.PieceSelected(it)) }
+            "piece" -> (value.toIntOrNull()?.let { pieces.getOrNull(it)?.id } ?: value).let { selectPiece(it, "debug") }
+            "podium" -> if (on) onEvent(OrchEvent.PodiumClicked)
+            "bring" -> if (on) onEvent(OrchEvent.BringHereClicked)
+            "exitask" -> onEvent(OrchEvent.ExitAsked(on))
             "fmute" -> Family.of(value)?.let { onEvent(OrchEvent.FamilyMuteClicked(it)) } ?: set { it.copy(mutedFamilies = emptySet()) }
-            "info" -> Family.of(value)?.let { onEvent(OrchEvent.FamilyInfoClicked(it)) } ?: set { it.copy(cardFamily = null) }
+            "info" -> Family.of(value)?.let { onEvent(OrchEvent.FamilyInfoClicked(it)) }
             "atmarker", "confirm" -> onEvent(OrchEvent.PlaceAtMarkerClicked)
             "move" -> onEvent(OrchEvent.MoveOrchestraClicked)
             "vr" -> onEvent(OrchEvent.VrSelected(on))
@@ -642,12 +701,7 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
             }
             "cancel" -> onEvent(OrchEvent.MoveCancelClicked)
             "unmark" -> onEvent(OrchEvent.ReplaceMarkerClicked)
-            "recall" -> onEvent(OrchEvent.SideRecallClicked)
-            "sidedrag" -> {
-                val (dx, dy) = value.split(',').map { it.trim().toFloatOrNull() ?: 0f }.let { (it.getOrElse(0) { 0f }) to (it.getOrElse(1) { 0f }) }
-                OrchGraph.sideDrag?.invoke(dx, dy)
-                OrchGraph.sideDrag?.invoke(Float.NaN, Float.NaN)
-            }
+            "recall" -> onEvent(OrchEvent.BringHereClicked)
             "marker" -> {
                 if (_state.value.room != Room.PLACING) debugState("S2")
                 val d = value.toFloatOrNull()?.takeIf { it > 0.5f } ?: 2.0f
@@ -671,7 +725,7 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
         when (id) {
             "S0" -> set { it.copy(room = Room.STARTING) }
             "S1" -> set { it.copy(room = Room.FINDING, virtualRoom = false) }
-            "S2" -> set { it.copy(room = Room.PLACING, floorKnown = true, solo = null, menuOpen = false, forceWall = false) }
+            "S2" -> set { it.copy(room = Room.PLACING, floorKnown = true, solo = null, forceWall = false) }
             "S13" -> {
                 set { it.copy(room = Room.PLACING, virtualRoom = true, floorKnown = true, solo = null, forceWall = false) }
                 snack(SnackKind.VIRTUAL, NOTICE_MS)
@@ -704,6 +758,9 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
             .put("audio", s.audio.name)
             .put("moved", s.moved)
             .put("snack", s.snack?.kind?.name ?: JSONObject.NULL)
+            .put("piece", piece.id)
+            .put("page", s.page)
+            .put("master", s.masterVol)
             .toString()
     }
 
@@ -713,6 +770,8 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
     }
 
     companion object {
+        /** Past this many seconds a piece counts as "in progress": picking another one asks first (D44). */
+        private const val IN_PROGRESS_S = 5f
         private const val CAPTION_MS = 6_000L
         private const val COACH_MS = 8_000L
         private const val NOTICE_MS = 4_000L
@@ -721,11 +780,16 @@ class OrchViewModel(private val appContext: Context) : ViewModel() {
         private const val NO_WALL_AFTER_MS = 8_000L
         private const val PLANES_AFTER_PLACE_MS = 15_000L
 
-        private fun loadPiece(context: Context): Piece =
+        private fun loadIndex(context: Context): List<PieceInfo> =
+            runCatching { PieceInfo.parseIndex(context.assets.open("pieces/index.json").bufferedReader(Charsets.UTF_8).use { it.readText() }) }
+                .onFailure { OrchLog.e("PIECE index load failed: $it", it) }
+                .getOrDefault(emptyList())
+
+        private fun loadPiece(context: Context, id: String): Piece =
             runCatching {
-                val json = context.assets.open("piece.json").bufferedReader(Charsets.UTF_8).use { it.readText() }
-                val bin = context.assets.open("parts.bin").use { it.readBytes() }
+                val json = context.assets.open("pieces/$id/piece.json").bufferedReader(Charsets.UTF_8).use { it.readText() }
+                val bin = context.assets.open("pieces/$id/parts.bin").use { it.readBytes() }
                 Piece.parse(json, bin)
-            }.onFailure { OrchLog.e("PIECE load failed: $it", it) }.getOrDefault(Piece.EMPTY)
+            }.onFailure { OrchLog.e("PIECE $id load failed: $it", it) }.getOrDefault(Piece.EMPTY)
     }
 }

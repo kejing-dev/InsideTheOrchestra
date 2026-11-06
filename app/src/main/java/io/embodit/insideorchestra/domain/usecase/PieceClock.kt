@@ -6,7 +6,19 @@ package io.embodit.insideorchestra.domain.usecase
  * When the stems report positions ([follow] gets their median), the clock leans towards it by at most 20 ms per
  * second (clock=audio); a median that is missing or stuck for 0.5 s leaves the clock free (clock=app).
  */
-class PieceClock(private val durationS: Float) {
+class PieceClock(durationS: Float) {
+    /** v0.1.5: a new piece brings a new length (the clock goes back to 0 and stops). */
+    var durationS = durationS
+        private set
+
+    fun load(duration: Float) {
+        durationS = duration
+        t = 0f
+        running = false
+        lastMedian = -1f
+        medianStuckS = 0f
+    }
+
     var t = 0f
         private set
     var running = false

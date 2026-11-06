@@ -11,6 +11,7 @@ import com.pico.spatial.core.ecs.audio.DistanceAttenuationMode
 import com.pico.spatial.core.ecs.resource.AudioMixerGroupResource
 import com.pico.spatial.core.ecs.resource.AudioResource
 import io.embodit.insideorchestra.domain.model.Stem
+import io.embodit.insideorchestra.domain.usecase.StemSlots
 import io.embodit.insideorchestra.platform.OrchLog
 import kotlin.math.abs
 import kotlin.math.exp
@@ -38,7 +39,7 @@ class OrchestraAudio {
         private set
 
     private val resources = HashMap<Stem, AudioResource>()
-    private val groups = HashMap<Stem, AudioMixerGroupResource>()
+    private val groups = StemSlots(Stem.entries, { stem -> AudioMixerGroupResource(name = groupName(stem), volume = 0f, playbackSpeed = 1f) }, { g -> runCatching { g.close() } })
     private val controllers = HashMap<Stem, AudioPlayerController>()
     private val entities = HashMap<Stem, Entity>()
     private val target = FloatArray(Stem.entries.size) { 1f }
@@ -49,6 +50,9 @@ class OrchestraAudio {
     private val speed = FloatArray(Stem.entries.size) { 1f }
     private val pendingSeek = arrayOfNulls<Float>(Stem.entries.size)
     private var syncTimer = 0f
+
+    /** The entity whose AudioMixerGroupsComponent holds [groups] (set once; a piece switch keeps it). */
+    private var groupsOn = -1L
     private var playing = false
 
     /** Last sync reading, per stem: position minus median, ms (for the log). */
@@ -58,24 +62,24 @@ class OrchestraAudio {
     var medianS = -1f
         private set
 
-    /** Loads the ten files (IO thread), then binds them to [sources] (main thread). One retry per stem. */
-    suspend fun load(sources: Map<Stem, Entity>, forceFail: Boolean): Boolean {
+    /** Loads [pieceId]'s ten files (IO thread), then binds them to [sources] (main thread). One retry per stem. */
+    suspend fun load(sources: Map<Stem, Entity>, pieceId: String, forceFail: Boolean): Boolean {
         status = Status.LOADING
         entities.clear()
         entities.putAll(sources)
-        for (stem in Stem.entries) {
-            if (groups[stem] == null) groups[stem] = AudioMixerGroupResource(name = groupName(stem), volume = 0f, playbackSpeed = 1f)
-        }
+        val made = groups.forLoad()
         // the groups live on the orchestra root's AudioMixerGroupsComponent (optional, keeps them findable)
-        sources.values.firstOrNull()?.getParent()?.let { root: Entity ->
-            runCatching { root.components.set(AudioMixerGroupsComponent().apply { groups.values.forEach { addMixerGroup(it) } }) }
+        val root = sources.values.firstOrNull()?.getParent()
+        if (root != null && root.id != groupsOn) {
+            runCatching { root.components.set(AudioMixerGroupsComponent().apply { made.values.forEach { addMixerGroup(it) } }) }
+            groupsOn = root.id
         }
         var ok = true
         for (stem in Stem.entries) {
             if (controllers[stem] != null) continue
             var res: AudioResource? = null
             for (attempt in 1..2) {
-                res = if (forceFail) null else withContext(Dispatchers.IO) { runCatching { AudioResource.load(stem.id, "asset://audio/${stem.id}.ogg", LoadType.FROM_ASSETS, AudioResourceConfig(groupName(stem))) }.onFailure { OrchLog.e("AUDIO load ${stem.id} attempt=$attempt failed: $it", it) }.getOrNull() }
+                res = if (forceFail) null else withContext(Dispatchers.IO) { runCatching { AudioResource.load("$pieceId-${stem.id}", "asset://audio/$pieceId/${stem.id}.ogg", LoadType.FROM_ASSETS, AudioResourceConfig(groupName(stem))) }.onFailure { OrchLog.e("AUDIO load ${stem.id} attempt=$attempt failed: $it", it) }.getOrNull() }
                 if (res != null) break
             }
             val entity = sources[stem]
@@ -97,7 +101,7 @@ class OrchestraAudio {
             controllers[stem] = controller
         }
         status = if (ok) Status.READY else Status.FAILED
-        OrchLog.i("AUDIO load ok=$ok stems=${controllers.size} durations=${controllers.values.joinToString(",") { runCatching { it.getDuration() }.getOrDefault(-1L).toString() }}")
+        OrchLog.i("AUDIO load piece=$pieceId ok=$ok stems=${controllers.size} durations=${controllers.values.joinToString(",") { runCatching { it.getDuration() }.getOrDefault(-1L).toString() }}")
         return ok
     }
 
@@ -236,6 +240,29 @@ class OrchestraAudio {
         }
     }
 
+    /**
+     * v0.1.6 (user on the headset: "no sound after switching to a new song"): a piece switch stops and closes the ten
+     * controllers and resources but keeps the mixer groups and their component. v0.1.5 closed the groups too and made
+     * new ones with the same names; the new piece's resources then played into the closed groups: positions advanced,
+     * nothing came out. The group volumes are written again on the next frame.
+     */
+    fun unloadPiece() {
+        playing = false
+        for (c in controllers.values) runCatching {
+            c.stop()
+            c.close()
+        }
+        controllers.clear()
+        for (r in resources.values) runCatching { r.close() }
+        resources.clear()
+        speed.fill(1f)
+        pendingSeek.fill(null)
+        written.fill(-1f)
+        clampWritten.fill(-1f)
+        medianS = -1f
+        status = Status.IDLE
+    }
+
     /** Stops and closes the ten controllers, resources and groups (design `I17`, scene detach). */
     fun release() {
         playing = false
@@ -246,8 +273,8 @@ class OrchestraAudio {
         controllers.clear()
         for (r in resources.values) runCatching { r.close() }
         resources.clear()
-        for (g in groups.values) runCatching { g.close() }
-        groups.clear()
+        groups.close()
+        groupsOn = -1L
         entities.clear()
         written.fill(-1f)
         clampWritten.fill(-1f)
@@ -261,10 +288,11 @@ class OrchestraAudio {
         private const val REVERB = 0.3f
 
         /**
-         * v0.1.4 (user: "声音太小了 ... 至少大 3-5 倍"): the source's effective radius (SDK: the attenuation reference),
-         * 0.1 -> 1.0 m, so 1 - 3 m away is no longer pushed down by INVERSE_SQUARED as if from 0.1 m.
+         * The source's effective radius (SDK: the attenuation reference). v0.1.4 0.1 -> 1.0 m; v0.1.5 (user 2026-11-05
+         * again: "这个声音太小") 2.0 m: from the podium every section is 1.2 - 3.2 m away, so the far rows lose at most
+         * ~4 dB and walking up to a section still makes it clearly louder.
          */
-        private const val SOUND_RADIUS = 1.0f
+        private const val SOUND_RADIUS = 2.0f
         private const val EASE_TAU_S = 0.1f
         private const val SYNC_EVERY_S = 1f
         private const val SOFT_MS = 20

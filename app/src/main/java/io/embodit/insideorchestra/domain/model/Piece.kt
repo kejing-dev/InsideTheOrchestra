@@ -5,14 +5,39 @@ import org.json.JSONObject
 /** One pass of the theme (design `piece.arrangement`): start on the piece clock, bpm and the guide caption. */
 data class Pass(val index: Int, val startS: Float, val bpm: Int, val caption: L?, val focus: Family?)
 
+/** One entry of `assets/pieces/index.json` (the piece list of the window's Pieces page). */
+data class PieceInfo(val id: String, val title: L, val composer: L, val year: Int, val durationS: Float) {
+    companion object {
+        fun parseIndex(json: String): List<PieceInfo> {
+            val arr = org.json.JSONArray(json)
+            return (0 until arr.length()).map { k ->
+                val o = arr.getJSONObject(k)
+                PieceInfo(o.getString("id"), L(o.getString("titleZh"), o.getString("titleEn")), L(o.getString("composerZh"), o.getString("composerEn")), o.optInt("year"), o.getDouble("durationS").toFloat())
+            }
+        }
+    }
+}
+
 /**
- * The one piece of the app, Grieg's "In the Hall of the Mountain King": timings from `assets/piece.json`, the
- * 15 part envelopes from `assets/parts.bin` (both written by `tools/make_music.py`). Pure data, no Android.
+ * One piece of the repertoire (v0.1.5: six, user 2026-11-05 "可以选的曲子多几个"): timings from
+ * `assets/pieces/<id>/piece.json`, the 15 part envelopes from `assets/pieces/<id>/parts.bin` (both written by
+ * `tools/make_music.py`), what each family does in it ([familyNotes], the instrument card). Pure data, no Android.
  *
  * parts.bin: "ORCP", u16 parts, u16 frames, u16 rate (Hz), then parts x frames bytes: bit 7 = pizzicato,
  * bits 0..6 = envelope 0..127.
  */
-class Piece(val durationS: Float, val passes: List<Pass>, val rests: Map<Stem, List<Pair<Float, Float>>>, private val rate: Int, private val frames: Int, private val env: ByteArray) {
+class Piece(
+    val durationS: Float,
+    val passes: List<Pass>,
+    val rests: Map<Stem, List<Pair<Float, Float>>>,
+    private val rate: Int,
+    private val frames: Int,
+    private val env: ByteArray,
+    val id: String = "",
+    val title: L = L("", ""),
+    val composer: L = L("", ""),
+    val familyNotes: Map<Family, L> = emptyMap(),
+) {
 
     /** Envelope 0..1 of [part] at [t] seconds (linear between 20 Hz frames). */
     fun envelope(part: Part, t: Float): Float {
@@ -65,7 +90,15 @@ class Piece(val durationS: Float, val passes: List<Pass>, val rests: Map<Stem, L
             val frames = (parts[6].toInt() and 0xFF) or ((parts[7].toInt() and 0xFF) shl 8)
             val rate = (parts[8].toInt() and 0xFF) or ((parts[9].toInt() and 0xFF) shl 8)
             require(n == Part.entries.size && parts.size >= 10 + n * frames) { "parts.bin: $n parts x $frames frames does not match" }
-            return Piece(o.getDouble("durationS").toFloat(), passes, rests, rate, frames, parts.copyOfRange(10, 10 + n * frames))
+            val notes = HashMap<Family, L>()
+            o.optJSONObject("families")?.let { fo -> for (f in Family.entries) fo.optJSONObject(f.id)?.let { notes[f] = L(it.getString("zh"), it.getString("en")) } }
+            return Piece(
+                o.getDouble("durationS").toFloat(), passes, rests, rate, frames, parts.copyOfRange(10, 10 + n * frames),
+                id = o.optString("id"),
+                title = L(o.optString("titleZh"), o.optString("titleEn")),
+                composer = L(o.optString("composerZh"), o.optString("composerEn")),
+                familyNotes = notes,
+            )
         }
 
         /** A silent stand-in while the assets are missing (keeps the UI working). */

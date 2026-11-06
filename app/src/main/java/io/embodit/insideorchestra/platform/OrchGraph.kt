@@ -28,6 +28,4 @@ object OrchGraph {
     /** Set by the running scene: debug `marker=<m>` puts the floor marker that far ahead (QA stands in for a ray). */
     @Volatile var debugMarker: ((Float) -> Boolean)? = null
 
-    /** Set by the running scene: drags the side panel by (dx, dy) dp; (NaN, NaN) = released (debug `sidedrag=dx,dy`). */
-    @Volatile var sideDrag: ((Float, Float) -> Unit)? = null
 }

@@ -24,11 +24,13 @@ import io.embodit.insideorchestra.ui.orch.components.OrchStage
 import io.embodit.insideorchestra.ui.orch.debug.OrchProbe
 import io.embodit.insideorchestra.ui.orch.scene.OrchFrameSystem
 import io.embodit.insideorchestra.ui.orch.scene.OrchScene
+import io.embodit.insideorchestra.ui.window.OrchHub
+import io.embodit.insideorchestra.ui.window.WindowCtl
 
 /**
  * The one screen of the app, living in a Mixed Stage. The ViewModel holds the state and the piece clock, the
  * [OrchScene] turns state into entities and reports taps, drags, pointing, the stick and the head, and
- * [OrchStage] declares the panels.
+ * [OrchStage] declares the 3D view and its one chip; all controls are in the system window (ui/window).
  */
 @Composable
 fun OrchScreen() {
@@ -42,6 +44,16 @@ fun OrchScreen() {
         true
     }
     val scene = remember(viewModel) { OrchScene(viewModel, viewModel::onEvent) }
+
+    // v0.1.5: the one system window reads the same ViewModel (process-level hub) and is opened from here
+    DisposableEffect(viewModel, navigator) {
+        OrchHub.vm = viewModel
+        WindowCtl.navigator = navigator
+        WindowCtl.openWindow("stage")
+        onDispose {
+            if (WindowCtl.navigator === navigator) WindowCtl.navigator = null
+        }
+    }
 
     DisposableEffect(scene) {
         registerSystem<OrchFrameSystem>()
@@ -96,9 +108,18 @@ fun OrchScreen() {
         viewModel.effects.collect { effect: OrchUiEffect ->
             when (effect) {
                 OrchUiEffect.ExitApp -> {
-                    OrchLog.i("STAGE close requested")
+                    // D26, same order as the factory template: release, close the window and the Stage, remove the tasks, end
+                    OrchLog.i("EXIT release + close window + closeStage + finishAndRemoveTask + exit")
                     scene.audioPause()
+                    scene.detach()
+                    WindowCtl.closeForQuit()
+                    EyePermissionActivity.closeForQuit()
                     runCatching { navigator.closeStage() }.onFailure { OrchLog.e("STAGE close failed: $it", it) }
+                    runCatching {
+                        val am = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+                        am?.appTasks?.forEach { runCatching { it.finishAndRemoveTask() } }
+                    }.onFailure { OrchLog.w("EXIT finishAndRemoveTask: $it") }
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ kotlin.system.exitProcess(0) }, 400)
                 }
                 OrchUiEffect.Click -> runCatching { audio.playSystem(SpatialSoundEffect.OpClick) }
                 is OrchUiEffect.Pull -> scene.pull(effect.seatId)
@@ -112,12 +133,14 @@ fun OrchScreen() {
                 OrchUiEffect.AudioPause -> scene.audioPause()
                 is OrchUiEffect.AudioSeek -> scene.audioSeek(effect.s)
                 OrchUiEffect.AudioRetry -> scene.audioRetry()
-                OrchUiEffect.RecallSide -> scene.recallSide()
+                OrchUiEffect.BringWindow -> WindowCtl.recall("bring-here")
+                OrchUiEffect.Podium -> scene.toPodium()
+                is OrchUiEffect.LoadPiece -> scene.loadPiece(effect.id)
                 is OrchUiEffect.StartMove -> scene.startMove(effect.pose)
                 OrchUiEffect.ClearMarker -> scene.clearMarker()
             }
         }
     }
 
-    OrchStage(state = state, piece = viewModel.piece, scene = scene, onEvent = viewModel::onEvent)
+    OrchStage(state = state, scene = scene)
 }

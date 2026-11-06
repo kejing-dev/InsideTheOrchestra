@@ -13,6 +13,24 @@ tracker, wall snap, ghost placing, thumbstick turn, panel pool, lazy follow, deb
 
 Read with the plugin guidance (`../PICO-SPATIAL-AGENTIC-TOOLS.AGENTS.md`): SpatialUI + PicoTheme only, no Material.
 
+## v0.1.5 (2026-11-05) — read this first; the sections below describe v0.1.0–v0.1.4
+
+- **One system window** (`ui/window/`): Planar `WindowContainer` "OrchestraPanel" 640 × 440 dp, system TabBar pages
+  演奏 / 曲目 / 声部 / 乐器 / 设置 (exit app at the bottom, confirmed on the same page). Moving / closing is the system's
+  handle dot. `WindowCtl` opens it only when the head is level (`LevelGate`), "叫回面前 / Bring here" = close → open after
+  ON_DESTROY. The Stage keeps one chip ("打开面板" / "平视前方"). All world panels, bars, card, snackbar, the drag handle and
+  `PlaneColliders` are gone; an app-owned invisible floor slab catches the placing pinch.
+- **Starts on the podium**: head valid 1 s + a floor → `HeadFrame.podiumAt` (user on the podium centre, players ahead).
+  "回到指挥台" on Play and Settings slides the orchestra back. [Move orchestra] still opens the marker placing flow.
+- **Six pieces** (`assets/pieces/index.json`, `pieces/<id>/piece.json|parts.bin`, `audio/<id>/<stem>.ogg`), rendered with
+  the GeneralUser GS SoundFont: `python tools/make_music.py <GeneralUser-GS.sf2> [qa dir] [ids]` (pip: numpy scipy
+  soundfile tinysoundfont matplotlib). Arrangements in `tools/repertoire.py`. No Blender needed any more.
+- **Volume**: master + 4 sections, detents 低 35 / 中 70 / 高 100 %, mute toggles; master default 高 (`masterVol5`).
+- **Players' scale**: `Orchestra.modelHeight/modelScale` (bassist 1.9 → 1.3 m), one calibration node per instance.
+- New debug keys: `piece=<id|0-5>`, `page=play|pieces|sections|learn|settings`, `podium=1`, `bring=1`, `exitask=1|0`;
+  `menu=1` = settings page, `recall=1` = bring here; `sidedrag` removed.
+- Emulator: `adb screencap` tears over the window (factory snippet §7.5); its audio output ignores mixer-group volume.
+
 ## Build
 
 ```

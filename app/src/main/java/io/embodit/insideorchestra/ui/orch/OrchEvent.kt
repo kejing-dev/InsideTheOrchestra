@@ -78,16 +78,30 @@ sealed interface OrchEvent {
     /** More menu: MR (passthrough) / VR (virtual concert hall). */
     data class VrSelected(val vr: Boolean) : OrchEvent
 
-    /** D21: bring the world-fixed side panel back in front (More menu, or the pill when it is out of view). */
-    data object SideRecallClicked : OrchEvent
+    /** D21: the window's [Bring here]. */
+    data object BringHereClicked : OrchEvent
 
-    data class SideLost(val lost: Boolean) : OrchEvent
+    /** v0.1.5: [Back to podium]. */
+    data object PodiumClicked : OrchEvent
+
+    /** v0.1.5: a piece picked on the Pieces page. */
+    data class PieceSelected(val id: String) : OrchEvent
+
+    /** D44: the answer to "switch to …? this one stops" ([PieceSelected] while a piece is in progress). */
+    data class PieceSwitchAnswer(val switch: Boolean) : OrchEvent
+
+    /** v0.1.5: a TabBar page. */
+    data class PageSelected(val page: String) : OrchEvent
+
+    /** v0.1.5: the scene's pose that puts the user on the podium (start: placed there, no placing step). */
+    data class AutoPlace(val pose: OrchPose) : OrchEvent
+
+    /** D26: [Exit app] (show = true) / [Cancel] (false); [ExitClicked] is the second, confirming press. */
+    data class ExitAsked(val show: Boolean) : OrchEvent
 
     data object Turn45Clicked : OrchEvent
 
     data object MuteClicked : OrchEvent
-
-    data object MoreClicked : OrchEvent
 
     data object RetryAudioClicked : OrchEvent
 

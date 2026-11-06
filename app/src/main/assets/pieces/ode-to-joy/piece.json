@@ -1,0 +1,345 @@
+{
+ "id": "ode-to-joy",
+ "titleZh": "欢乐颂",
+ "titleEn": "Ode to Joy",
+ "composerZh": "贝多芬",
+ "composerEn": "Beethoven",
+ "year": 1824,
+ "durationS": 155.31,
+ "parts": [
+  "V1",
+  "V2",
+  "VA",
+  "VC",
+  "CB",
+  "FL",
+  "OB",
+  "CL",
+  "BSN",
+  "HN",
+  "TPT",
+  "TBN",
+  "TUBA",
+  "TIMP",
+  "BD"
+ ],
+ "envelopeRate": 20,
+ "passes": [
+  {
+   "startS": 0.0,
+   "bpm": 104,
+   "captionZh": "大提琴和低音提琴先轻轻地、慢慢地唱出这段旋律，别的人都在听",
+   "captionEn": "Cellos and basses sing the tune quietly on their own; everyone else listens",
+   "focus": "str",
+   "pass": 0
+  },
+  {
+   "startS": 36.923,
+   "bpm": 104,
+   "captionZh": "中提琴接过旋律，大管在下面走出一条新的线",
+   "captionEn": "Violas take the tune; the bassoon walks a new line underneath",
+   "focus": "ww",
+   "pass": 1
+  },
+  {
+   "startS": 73.846,
+   "bpm": 104,
+   "captionZh": "小提琴在高处唱，圆号在后面托着和声",
+   "captionEn": "The violins sing it up high; the horns hold the harmony",
+   "focus": "str",
+   "pass": 2
+  },
+  {
+   "startS": 110.769,
+   "bpm": 104,
+   "captionZh": "全团一起：小号和长号加进来，定音鼓敲着拍子，越来越响",
+   "captionEn": "The whole orchestra: trumpets and trombones join, timpani on the beat",
+   "focus": "br",
+   "pass": 3
+  },
+  {
+   "startS": 147.692,
+   "bpm": 104,
+   "captionZh": "尾声：全团一个长长的大和弦",
+   "captionEn": "Coda: one long, full chord",
+   "focus": null,
+   "pass": 4
+  }
+ ],
+ "rests": {
+  "vln": [
+   [
+    0.0,
+    73.8
+   ],
+   [
+    148.25,
+    148.8
+   ],
+   [
+    152.0,
+    155.35
+   ]
+  ],
+  "vla": [
+   [
+    0.0,
+    36.9
+   ],
+   [
+    148.25,
+    148.8
+   ],
+   [
+    152.0,
+    155.35
+   ]
+  ],
+  "vc": [
+   [
+    148.25,
+    148.8
+   ],
+   [
+    152.0,
+    155.35
+   ]
+  ],
+  "cb": [
+   [
+    148.25,
+    148.8
+   ],
+   [
+    152.0,
+    155.35
+   ]
+  ],
+  "ww": [
+   [
+    0.0,
+    36.9
+   ],
+   [
+    148.25,
+    148.8
+   ],
+   [
+    152.0,
+    155.35
+   ]
+  ],
+  "hn": [
+   [
+    0.0,
+    73.8
+   ],
+   [
+    148.25,
+    148.8
+   ],
+   [
+    152.0,
+    155.35
+   ]
+  ],
+  "tpt": [
+   [
+    0.0,
+    110.75
+   ],
+   [
+    148.25,
+    148.8
+   ],
+   [
+    152.0,
+    155.35
+   ]
+  ],
+  "lbr": [
+   [
+    0.0,
+    110.75
+   ],
+   [
+    148.25,
+    148.8
+   ],
+   [
+    152.0,
+    155.35
+   ]
+  ],
+  "timp": [
+   [
+    0.0,
+    110.75
+   ],
+   [
+    111.3,
+    111.9
+   ],
+   [
+    112.45,
+    113.05
+   ],
+   [
+    113.6,
+    114.2
+   ],
+   [
+    114.75,
+    115.35
+   ],
+   [
+    115.9,
+    116.5
+   ],
+   [
+    117.05,
+    117.65
+   ],
+   [
+    118.2,
+    118.8
+   ],
+   [
+    119.35,
+    120.0
+   ],
+   [
+    120.55,
+    121.15
+   ],
+   [
+    121.7,
+    122.3
+   ],
+   [
+    122.85,
+    123.45
+   ],
+   [
+    124.0,
+    124.6
+   ],
+   [
+    125.15,
+    125.75
+   ],
+   [
+    126.3,
+    126.9
+   ],
+   [
+    127.45,
+    128.05
+   ],
+   [
+    128.6,
+    129.2
+   ],
+   [
+    129.75,
+    130.35
+   ],
+   [
+    130.9,
+    131.5
+   ],
+   [
+    132.05,
+    132.65
+   ],
+   [
+    133.2,
+    133.8
+   ],
+   [
+    134.35,
+    135.0
+   ],
+   [
+    135.55,
+    136.15
+   ],
+   [
+    136.7,
+    137.3
+   ],
+   [
+    137.85,
+    138.45
+   ],
+   [
+    139.0,
+    139.6
+   ],
+   [
+    140.15,
+    140.75
+   ],
+   [
+    141.3,
+    141.9
+   ],
+   [
+    142.45,
+    143.05
+   ],
+   [
+    143.6,
+    144.2
+   ],
+   [
+    144.75,
+    145.35
+   ],
+   [
+    145.9,
+    146.5
+   ],
+   [
+    147.05,
+    147.65
+   ],
+   [
+    148.2,
+    148.8
+   ],
+   [
+    152.15,
+    155.35
+   ]
+  ],
+  "bd": [
+   [
+    0.0,
+    148.8
+   ],
+   [
+    150.6,
+    155.35
+   ]
+  ]
+ },
+ "families": {
+  "str": {
+   "zh": "大提琴和低音提琴最先唱出旋律，接着中提琴、小提琴一层层接上去。",
+   "en": "Cellos and basses sing the tune first; violas, then violins take it higher."
+  },
+  "ww": {
+   "zh": "大管在旋律下面走出另一条线，后来长笛、双簧管跟着一起唱。",
+   "en": "The bassoon walks a second line under the tune; later flute and oboe sing along."
+  },
+  "br": {
+   "zh": "圆号托着和声，最后一遍小号吹旋律、长号和大号垫在下面。",
+   "en": "Horns hold the harmony; in the last round the trumpet plays the tune over trombones and tuba."
+  },
+  "perc": {
+   "zh": "最后一遍定音鼓每两拍敲一下，结尾一阵滚奏。",
+   "en": "In the last round the timpani strike every two beats, then roll at the end."
+  }
+ }
+}

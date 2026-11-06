@@ -107,15 +107,15 @@ internal class OrchestraView(parent: Entity, private val m: SceneMaterials, priv
         holder.setLocal(position = Vec3(seat.x, 0f, seat.z), rotation = Quat4.axisAngle(Vec3.UP, seat.yaw))
         val body = Entity().named("body${seat.id}")
         holder.addChild(body)
-        val jitter = 0.97f + 0.06f * ((seat.id.hashCode() and 0xFF) / 255f)
+        // v0.1.5 (D25): no per-instance size jitter; the model's one calibration scale is applied in [attachModel]
+        val jitter = 1f
         body.setUniformScale(jitter)
         val ring = ModelEntity(meshes.ring, m.ring.getValue(seat.family)).named("ring${seat.id}")
         holder.addChild(ring)
         ring.setLocal(position = Vec3(0f, 0.008f, 0f))
         ring.setOpacity(RING_BASE)
-        val h = if (seat.model == "bassist") 1.9f else if (seat.part.family == Family.PERC) 1.6f else 1.3f
-        // the tap box is its own child so it can be switched off while the musician covers a panel (v0.1.1, D20);
-        // 0.95 of the model height: the bars float above the heads, out of every box
+        val h = Orchestra.modelHeight(seat.model)
+        // the tap box is its own child, 0.95 of the calibrated model height
         val hit = Entity().named("hit${seat.id}")
         holder.addChild(hit)
         hit.tapBox(Vec3(0.56f, h * 0.95f, 0.56f), Vec3(0f, h * 0.95f / 2f, 0f))
@@ -129,9 +129,14 @@ internal class OrchestraView(parent: Entity, private val m: SceneMaterials, priv
     /** The model clone of [seat] arrives (templates load in the background). */
     fun attachModel(v: SeatView, clone: Entity) {
         v.model?.let { runCatching { it.destroy(true) } }
-        v.body.addChild(clone)
+        // D25: one calibration node per instance carrying the model's shared scale (Orchestra.modelScale)
+        val calib = Entity().named("calib${v.seat.id}")
+        v.body.addChild(calib)
+        calib.setUniformScale(Orchestra.modelScale(v.seat.model))
+        calib.addChild(clone)
         clone.enabled = true
-        v.model = clone
+        v.model = calib
+        byEntity[calib.id] = v
         byEntity[clone.id] = v
         v.lastOpacity = -1f
         envIbl?.let { setEnvironmentIbl(it) }

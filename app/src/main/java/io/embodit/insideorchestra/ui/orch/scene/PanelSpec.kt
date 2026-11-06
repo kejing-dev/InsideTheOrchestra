@@ -1,59 +1,14 @@
 package io.embodit.insideorchestra.ui.orch.scene
 
-/** Ids and dp sizes of every attachment panel (design `panels`); the Compose side declares exactly these, once. */
+/**
+ * The one attachment panel left in the Stage (v0.1.5, D8 / D21: every other 2D control is in the system window):
+ * the chip that says "打开面板" while the window is closed or minimised, or "平视前方 / 面板就出来" while an open waits
+ * for a level head (native-window-move §3.3 / §7.9).
+ */
 object PanelSpec {
-    /**
-     * v0.1.1: the side panel with the shared controls once the orchestra is placed (title, mute, more; piece; transport;
-     * master volume; hint + Move orchestra), 440 x 276. The section controls moved to one bar above each section ([bar]).
-     */
-    const val CONTROL = "controlPanel"
+    const val CHIP = "windowChip"
+    val CHIP_SIZE = 380f to 72f
+    const val CHIP_SCALE = 0.9f
 
-    /** The control panel while starting / placing: title, hint, Turn 45 (420 x 152). */
-    const val PLACING = "placingPanel"
-    const val MENU = "menuPanel"
-    const val CARD = "cardPanel"
-    const val SNACK = "snackPanel"
-
-    /** D21: head-locked pill shown only while the world-fixed side panel is out of view: "Controls behind you · [Call back]". */
-    const val RECALL = "recallPanel"
-    val RECALL_SIZE = 360f to 64f
-
-    val CONTROL_SIZE = 440f to 276f
-    val PLACING_SIZE = 440f to 184f
-
-    /** v0.1.1: one bar per section above its players: dot + name, BeatMap dots, Solo / Mute / Info, its volume slider (440 x 124). */
-    val BAR_SIZE = 440f to 124f
-
-    fun bar(f: io.embodit.insideorchestra.domain.model.Family): String = "bar" + f.id
-
-    val BARS: List<String> = io.embodit.insideorchestra.domain.model.Family.entries.map { bar(it) }
-    val MENU_SIZE = 300f to 528f
-    val CARD_SIZE = 360f to 420f
-    val SNACK_SIZE = 600f to 72f
-
-    /** Side panel at 0.8 (1 dp = 0.64 mm): 0.28 m wide at 0.7 m. */
-    const val MAIN_SCALE = 0.8f
-    const val MENU_SCALE = 0.8f
-    const val CARD_SCALE = 1.0f
-    const val SNACK_SCALE = 0.9f
-    const val RECALL_SCALE = 0.9f
-
-    val pool: List<String> = listOf(CONTROL, PLACING, MENU, CARD, SNACK, RECALL) + BARS
-
-    fun size(id: String): Pair<Float, Float> =
-        when (id) {
-            CONTROL -> CONTROL_SIZE
-            PLACING -> PLACING_SIZE
-            MENU -> MENU_SIZE
-            CARD -> CARD_SIZE
-            SNACK -> SNACK_SIZE
-            RECALL -> RECALL_SIZE
-            else -> BAR_SIZE
-        }
-
-    /** Half width / height of a panel in metres at [scale]. */
-    fun halfM(id: String, scale: Float): Pair<Float, Float> {
-        val (w, h) = size(id)
-        return (w * PanelRig.DP_M * scale / 2f) to (h * PanelRig.DP_M * scale / 2f)
-    }
+    val pool: List<String> = listOf(CHIP)
 }

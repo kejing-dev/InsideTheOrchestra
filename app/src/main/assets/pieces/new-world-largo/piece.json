@@ -1,0 +1,181 @@
+{
+ "id": "new-world-largo",
+ "titleZh": "自新大陆·广板",
+ "titleEn": "New World Symphony, Largo",
+ "composerZh": "德沃夏克",
+ "composerEn": "Dvořák",
+ "year": 1893,
+ "durationS": 151.19,
+ "parts": [
+  "V1",
+  "V2",
+  "VA",
+  "VC",
+  "CB",
+  "FL",
+  "OB",
+  "CL",
+  "BSN",
+  "HN",
+  "TPT",
+  "TBN",
+  "TUBA",
+  "TIMP",
+  "BD"
+ ],
+ "envelopeRate": 20,
+ "passes": [
+  {
+   "startS": 0.0,
+   "bpm": 52,
+   "captionZh": "开头：长号、大号和圆号吹出几个又低又暖的和弦",
+   "captionEn": "Opening: trombones, tuba and horns breathe a few low, warm chords",
+   "focus": "br",
+   "pass": 0
+  },
+  {
+   "startS": 18.462,
+   "bpm": 52,
+   "captionZh": "英国管的那段旋律（这里由双簧管吹），弦乐轻轻垫在下面",
+   "captionEn": "The famous cor anglais tune (our oboe plays it) over soft, muted strings",
+   "focus": "ww",
+   "pass": 1
+  },
+  {
+   "startS": 55.385,
+   "bpm": 52,
+   "captionZh": "单簧管接着唱一遍，圆号轻轻应和",
+   "captionEn": "The clarinet sings it once more; a horn answers softly",
+   "focus": "ww",
+   "pass": 2
+  },
+  {
+   "startS": 92.308,
+   "bpm": 52,
+   "captionZh": "弦乐全体唱这段旋律，长笛在上面飘着",
+   "captionEn": "All the strings sing it together; the flute floats above",
+   "focus": "str",
+   "pass": 3
+  },
+  {
+   "startS": 129.231,
+   "bpm": 52,
+   "captionZh": "最后又回到开头那几个铜管和弦，安静地结束",
+   "captionEn": "The brass chords from the start return, and it fades to silence",
+   "focus": "br",
+   "pass": 4
+  }
+ ],
+ "rests": {
+  "vln": [
+   [
+    0.0,
+    18.45
+   ],
+   [
+    129.1,
+    151.2
+   ]
+  ],
+  "vla": [
+   [
+    0.0,
+    18.45
+   ],
+   [
+    129.1,
+    151.2
+   ]
+  ],
+  "vc": [
+   [
+    0.0,
+    18.45
+   ],
+   [
+    129.1,
+    151.2
+   ]
+  ],
+  "cb": [
+   [
+    0.0,
+    18.45
+   ],
+   [
+    147.55,
+    151.2
+   ]
+  ],
+  "ww": [
+   [
+    129.1,
+    151.2
+   ]
+  ],
+  "hn": [
+   [
+    18.3,
+    64.6
+   ],
+   [
+    73.6,
+    83.05
+   ],
+   [
+    147.55,
+    151.2
+   ]
+  ],
+  "tpt": [
+   [
+    0.0,
+    151.2
+   ]
+  ],
+  "lbr": [
+   [
+    18.3,
+    129.2
+   ],
+   [
+    147.55,
+    151.2
+   ]
+  ],
+  "timp": [
+   [
+    0.0,
+    143.05
+   ],
+   [
+    143.8,
+    151.2
+   ]
+  ],
+  "bd": [
+   [
+    0.0,
+    151.2
+   ]
+  ]
+ },
+ "families": {
+  "str": {
+   "zh": "开始只轻轻垫着和声，第三遍全体弦乐一起唱这段旋律。",
+   "en": "They softly pad the harmony at first; in the third round all the strings sing the tune."
+  },
+  "ww": {
+   "zh": "这段旋律本来是英国管吹的，这里由双簧管吹，单簧管再唱一遍。",
+   "en": "The tune belongs to the cor anglais; here the oboe plays it, then the clarinet."
+  },
+  "br": {
+   "zh": "开头和结尾那几个又低又暖的和弦，是长号、大号和圆号吹的。",
+   "en": "The low, warm chords at the start and end are trombones, tuba and horns."
+  },
+  "perc": {
+   "zh": "只在结尾敲一下很轻的定音鼓。",
+   "en": "Just one very soft timpani stroke near the end."
+  }
+ }
+}

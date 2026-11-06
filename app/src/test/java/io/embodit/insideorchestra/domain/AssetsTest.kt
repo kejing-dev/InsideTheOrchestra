@@ -53,11 +53,16 @@ class AssetsTest {
 
     @Test
     fun slidersSnapAtThreeDetents() {
-        assertEquals(0.5f, VolumeSnap.snap(0.47f), 1e-6f)
-        assertEquals(0.75f, VolumeSnap.snap(0.78f), 1e-6f)
-        assertEquals(1f, VolumeSnap.snap(0.97f), 1e-6f)
-        assertEquals(0.62f, VolumeSnap.snap(0.62f), 1e-6f)
+        // v0.1.5: 低 / 中 / 高 = 35 / 70 / 100 %, caught within 5 points
+        assertEquals(0.35f, VolumeSnap.snap(0.32f), 1e-6f)
+        assertEquals(0.7f, VolumeSnap.snap(0.74f), 1e-6f)
+        assertEquals(1f, VolumeSnap.snap(0.96f), 1e-6f)
+        assertEquals(0.52f, VolumeSnap.snap(0.52f), 1e-6f)
         assertEquals(0f, VolumeSnap.snap(-0.2f), 1e-6f)
-        assertEquals("75%", VolumeSnap.percent(0.75f))
+        assertEquals("70%", VolumeSnap.percent(0.7f))
+        assertEquals(0, VolumeSnap.level(VolumeSnap.snap(0.37f)))
+        assertEquals(1, VolumeSnap.level(VolumeSnap.snap(0.68f)))
+        assertEquals(2, VolumeSnap.level(VolumeSnap.DEFAULT))
+        assertEquals(-1, VolumeSnap.level(0.52f))
     }
 }

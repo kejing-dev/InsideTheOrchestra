@@ -1,0 +1,201 @@
+{
+ "id": "canon",
+ "titleZh": "D 大调卡农",
+ "titleEn": "Canon in D",
+ "composerZh": "帕赫贝尔",
+ "composerEn": "Pachelbel",
+ "year": 1690,
+ "durationS": 124.82,
+ "parts": [
+  "V1",
+  "V2",
+  "VA",
+  "VC",
+  "CB",
+  "FL",
+  "OB",
+  "CL",
+  "BSN",
+  "HN",
+  "TPT",
+  "TBN",
+  "TUBA",
+  "TIMP",
+  "BD"
+ ],
+ "envelopeRate": 20,
+ "passes": [
+  {
+   "startS": 0.0,
+   "bpm": 66,
+   "captionZh": "大提琴和低音提琴先拉出一组八个音的低音，整首曲子它都不变",
+   "captionEn": "Cellos and basses lay down eight bass notes; they repeat the whole piece",
+   "focus": "str",
+   "pass": 0
+  },
+  {
+   "startS": 14.545,
+   "bpm": 66,
+   "captionZh": "第一小提琴进来；后面每一组，第二小提琴都会照着它拉一遍",
+   "captionEn": "First violins enter; each line they play, the seconds will copy one round later",
+   "focus": "str",
+   "pass": 1
+  },
+  {
+   "startS": 29.091,
+   "bpm": 66,
+   "captionZh": null,
+   "captionEn": null,
+   "focus": null,
+   "pass": 2
+  },
+  {
+   "startS": 43.636,
+   "bpm": 66,
+   "captionZh": "中提琴也跟进，三条线像轮唱一样追着走",
+   "captionEn": "The violas follow: three lines chasing each other like a round",
+   "focus": "str",
+   "pass": 3
+  },
+  {
+   "startS": 58.182,
+   "bpm": 66,
+   "captionZh": null,
+   "captionEn": null,
+   "focus": null,
+   "pass": 4
+  },
+  {
+   "startS": 72.727,
+   "bpm": 66,
+   "captionZh": "长笛和双簧管加进来，圆号托着长音",
+   "captionEn": "Flute and oboe join; the horns hold long notes",
+   "focus": "ww",
+   "pass": 5
+  },
+  {
+   "startS": 87.273,
+   "bpm": 66,
+   "captionZh": null,
+   "captionEn": null,
+   "focus": null,
+   "pass": 6
+  },
+  {
+   "startS": 101.818,
+   "bpm": 66,
+   "captionZh": "最后一轮：全团一起，慢慢收住",
+   "captionEn": "Last round: everyone together, slowing to the end",
+   "focus": null,
+   "pass": 7
+  },
+  {
+   "startS": 116.364,
+   "bpm": 66,
+   "captionZh": "尾声：一个 D 大调的长和弦",
+   "captionEn": "Coda: one long D major chord",
+   "focus": null,
+   "pass": 8
+  }
+ ],
+ "rests": {
+  "vln": [
+   [
+    0.0,
+    14.5
+   ],
+   [
+    120.9,
+    124.85
+   ]
+  ],
+  "vla": [
+   [
+    0.0,
+    43.6
+   ],
+   [
+    120.9,
+    124.85
+   ]
+  ],
+  "vc": [
+   [
+    120.9,
+    124.85
+   ]
+  ],
+  "cb": [
+   [
+    120.9,
+    124.85
+   ]
+  ],
+  "ww": [
+   [
+    0.0,
+    72.7
+   ],
+   [
+    120.9,
+    124.85
+   ]
+  ],
+  "hn": [
+   [
+    0.0,
+    72.7
+   ],
+   [
+    120.9,
+    124.85
+   ]
+  ],
+  "tpt": [
+   [
+    0.0,
+    124.85
+   ]
+  ],
+  "lbr": [
+   [
+    0.0,
+    101.8
+   ],
+   [
+    120.9,
+    124.85
+   ]
+  ],
+  "timp": [
+   [
+    0.0,
+    124.85
+   ]
+  ],
+  "bd": [
+   [
+    0.0,
+    124.85
+   ]
+  ]
+ },
+ "families": {
+  "str": {
+   "zh": "低音一直重复同一组八个音；三组小提琴、中提琴照着同一条线一前一后地追。",
+   "en": "The bass repeats the same eight notes; violins and violas play one line, each a round behind."
+  },
+  "ww": {
+   "zh": "后半段长笛和双簧管加进来，跟着弦乐的旋律走。",
+   "en": "In the second half flute and oboe join the string lines."
+  },
+  "br": {
+   "zh": "圆号只吹长音，把和声垫厚。",
+   "en": "The horns only hold long notes, thickening the harmony."
+  },
+  "perc": {
+   "zh": "这首没有打击乐，打击乐手在休息。",
+   "en": "No percussion in this one: the percussionists are resting."
+  }
+ }
+}

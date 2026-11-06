@@ -37,7 +37,8 @@ internal object Copy {
         fun place(zh: String, english: String) = t(en, zh + TURN_ZH, english + TURN_EN)
         return when {
             s.room == Room.STARTING -> t(en, "正在准备…", "Getting ready…")
-            s.room == Room.FINDING -> t(en, "环顾一下房间，正在找地面…（最多 5 秒）", "Look around the room, finding the floor… (up to 5 s)")
+            // v0.1.5: no placing step at the start; the user is put on the podium as soon as a floor is known
+            s.room == Room.FINDING -> t(en, "看看四周，马上把你放到指挥台上…", "Look around: putting you on the podium in a moment…")
             // v0.1.2 (D1 "放置模式必须有终点"): every placing hint says what is happening now -> what comes next
             s.room == Room.PLACING && !s.marker ->
                 movePrefix(s) + t(en, "在地上点一下放乐团（手柄射线或目光 + 捏合）→ 确认", "Tap the floor to place the orchestra (controller ray or eyes + pinch) → Confirm") + headNote(s)
@@ -50,9 +51,9 @@ internal object Copy {
                 val name = s.solo.seatId?.let { id -> Orchestra.seat(id)?.instrumentName(en) } ?: s.solo.family.name(en)
                 t(en, "只听：$name · 点 [恢复全体] 或点空处恢复", "Only: $name · Tap Restore or an empty spot")
             }
-            s.transport == Transport.DONE -> t(en, "演奏完了！再听一遍，或者把乐团转过来听", "That's the end! Play it again, or turn the orchestra round")
+            s.transport == Transport.DONE -> t(en, "演奏完了！再听一遍，或者在「曲目」里换一首", "That's the end! Play it again, or pick another in Pieces")
             s.near?.podium == true -> t(en, "你站在指挥的位置：全团平衡", "You're on the podium: the whole orchestra in balance")
-            s.near?.stem != null -> t(en, "你在${s.near.stem.name(false)}旁边", "You're next to the ${s.near.stem.name(true).lowercase()}")
+            s.near?.stem != null -> t(en, "你在${s.near.stem.name(false)}旁边 · 点「回到指挥台」回去", "You're next to the ${s.near.stem.name(true).lowercase()} · Back to podium returns you")
             s.focusSeat != null -> {
                 val name = Orchestra.seat(s.focusSeat)?.instrumentName(en) ?: ""
                 t(en, "正在突出：$name · 捏一下 / 扣扳机只听它", "Bringing out: $name · Pinch or pull the trigger to hear only it")
@@ -69,8 +70,8 @@ internal object Copy {
             SnackKind.CAPTION -> piece.passes.getOrNull(s.pass)?.caption?.of(en) ?: ""
             SnackKind.COACH -> t(en, "看着或用射线指着乐手，就突出它的声部；捏一下 / 扣扳机只听它", "Look or point at a player to bring their part forward; pinch or pull the trigger to hear only it")
             SnackKind.SNAPPED -> t(en, "已对齐墙边", "Lined up with the wall")
-            SnackKind.NO_WALL -> if (state.scale < 1f) t(en, "没有 1.5 m 长的墙，可自由摆放", "No 1.5 m wall here: place it anywhere") else t(en, "没有 3 m 长的墙，可自由摆放，或在更多里缩到 1:2", "No 3 m wall here: place it anywhere, or switch to 1:2 in More")
-            SnackKind.VIRTUAL -> t(en, "没扫到地面，先用虚拟房间 · 更多里可调尺寸", "No floor found yet: using a virtual room · Resize it in More")
+            SnackKind.NO_WALL -> if (state.scale < 1f) t(en, "没有 1.5 m 长的墙，可自由摆放", "No 1.5 m wall here: place it anywhere") else t(en, "没有 3 m 长的墙，可自由摆放，或在设置里缩到 1:2", "No 3 m wall here: place it anywhere, or switch to 1:2 in Settings")
+            SnackKind.VIRTUAL -> t(en, "还没认出地面，先用虚拟地面 · 设置里可调房间大小", "No floor recognised yet: using a virtual floor · Room size is in Settings")
             SnackKind.BLOCKED -> t(en, "空间识别不可用，已用虚拟房间", "Room detection unavailable: using a virtual room")
         }
     }
@@ -104,11 +105,76 @@ internal object Copy {
 
     fun volume(en: Boolean) = t(en, "音量", "Volume")
 
-    fun dragHint(en: Boolean) = t(en, "拖动移动面板", "Drag to move the panel")
+    // ---- v0.1.5 window
+    fun tabPlay(en: Boolean) = t(en, "演奏", "Play")
 
-    fun recall(en: Boolean) = t(en, "叫回面板", "Call back panel")
+    fun tabPieces(en: Boolean) = t(en, "曲目", "Pieces")
 
-    fun lostPill(en: Boolean) = t(en, "控制面板不在视野里", "The controls are out of view")
+    fun tabSections(en: Boolean) = t(en, "声部", "Sections")
+
+    fun tabLearn(en: Boolean) = t(en, "乐器", "Instruments")
+
+    fun tabSettings(en: Boolean) = t(en, "设置", "Settings")
+
+    fun bringHere(en: Boolean) = t(en, "叫回面前", "Bring here")
+
+    fun podium(en: Boolean) = t(en, "回到指挥台", "Back to podium")
+
+    fun openPanel(en: Boolean) = t(en, "打开面板", "Open panel")
+
+    fun levelHint(en: Boolean) = t(en, "平视前方，面板就出来", "Look straight ahead and the panel opens")
+
+    fun low(en: Boolean) = t(en, "低", "Low")
+
+    fun mid(en: Boolean) = t(en, "中", "Mid")
+
+    fun high(en: Boolean) = t(en, "高", "High")
+
+    fun levels(en: Boolean) = t(en, "快捷音量", "Quick level")
+
+    fun mutedShort(en: Boolean) = t(en, "静音", "Off")
+
+    fun playLabel(en: Boolean) = t(en, "播放", "Play")
+
+    fun pauseLabel(en: Boolean) = t(en, "暂停", "Pause")
+
+    fun fromStart(en: Boolean) = t(en, "从头开始", "From the start")
+
+    fun piecesTitle(en: Boolean, n: Int) = t(en, "选一首曲子（$n 首，都是公有领域的古典名曲）", "Pick a piece ($n public-domain classics)")
+
+    fun switchAsk(en: Boolean, title: String) = t(en, "换成《$title》？现在这首会停下", "Switch to $title? This one stops")
+
+    fun switchPiece(en: Boolean) = t(en, "换曲", "Switch")
+
+    fun nowPlaying(en: Boolean) = t(en, "当前", "Current")
+
+    fun loading(en: Boolean) = t(en, "加载中", "Loading")
+
+    fun sectionLabel(en: Boolean) = t(en, "声部", "Section")
+
+    fun inPieceLine(en: Boolean, text: String) = t(en, "在这首曲子里：$text", "In this piece: $text")
+
+    fun soloFamily(en: Boolean, name: String) = t(en, "只听$name", "Hear only the ${name.lowercase()}")
+
+    fun system(en: Boolean) = t(en, "跟随系统", "System")
+
+    fun modeMr(en: Boolean) = t(en, "透视", "Passthrough")
+
+    fun modeVr(en: Boolean) = t(en, "音乐厅", "Concert hall")
+
+    fun exitApp(en: Boolean) = t(en, "退出应用", "Exit app")
+
+    fun exitAsk(en: Boolean) = t(en, "退出走进乐团？", "Exit Inside the Orchestra?")
+
+    fun credits(en: Boolean) =
+        t(
+            en,
+            "乐器音色：GeneralUser GS 2.0.3（S. Christian Collins，可免费商用）。曲目均为公有领域作品，编配为本应用自编。",
+            "Instrument sounds: GeneralUser GS 2.0.3 by S. Christian Collins (free for commercial use). All pieces are public domain; the arrangements are our own.",
+        )
+
+    /** The Play page's line: the caption or notice showing now, else the hint (design `stateModel.hintPriority`). */
+    fun line(s: OrchUiState, piece: Piece): String = s.snack?.let { snack(it, s, piece) }?.takeIf { it.isNotEmpty() } ?: hint(s)
 
     fun inPiece(en: Boolean) = t(en, "在这首曲子里", "In this piece")
 
@@ -130,7 +196,7 @@ internal object Copy {
 
     fun menuSize(en: Boolean) = t(en, "大小", "Size")
 
-    fun menuMode(en: Boolean) = t(en, "透视 / 音乐厅", "MR / VR")
+    fun menuMode(en: Boolean) = t(en, "场景", "Scene")
 
     fun on(en: Boolean) = t(en, "开", "On")
 
@@ -151,8 +217,6 @@ internal object Copy {
     fun muted(en: Boolean, m: Boolean) = if (m) t(en, "已静音", "Muted") else t(en, "静音", "Mute")
 
     fun snapped(en: Boolean) = t(en, "已对齐墙边", "Lined up")
-
-    fun pieceLine(en: Boolean) = t(en, "格里格《在山魔王的宫殿里》", "Grieg · In the Hall of the Mountain King")
 
     private fun fmt(v: Float): String = String.format(java.util.Locale.US, "%.1f", v)
 

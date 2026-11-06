@@ -191,6 +191,32 @@ object Orchestra {
 
     val models: List<String> = seats.map { it.model }.distinct()
 
+    /**
+     * v0.1.5 (user 2026-11-05: "右边大提琴人太大"): every model's height in the room, head top (or the instrument's top
+     * when that is higher) to the floor. The Tripo GLBs come in from tools/prep_models.py at 1.25 m seated, but the
+     * bassist was scaled to 1.9 m by its box, whose top is the player's head, not the bass scroll: the player came out
+     * 1.5x everyone else (stool seat 0.6 m against 0.4 m). Seated players are all ~1.3 m now, standing percussion 1.6 m.
+     */
+    fun modelHeight(model: String): Float =
+        when (model) {
+            "bassist" -> 1.30f
+            "timpanist", "bassdrummer" -> 1.60f
+            "tubist", "bassoonist" -> 1.30f
+            else -> 1.25f
+        }
+
+    /** Height of each model as it arrives from tools/prep_models.py (the GLB's own box). */
+    fun prepHeight(model: String): Float =
+        when (model) {
+            "bassist" -> 1.90f
+            "timpanist", "bassdrummer" -> 1.60f
+            "tubist", "bassoonist" -> 1.30f
+            else -> 1.25f
+        }
+
+    /** One calibration scale per model, shared by all its instances (D25: never per instance). */
+    fun modelScale(model: String): Float = modelHeight(model) / prepHeight(model)
+
     fun seat(id: String): Seat? = seats.firstOrNull { it.id.equals(id, ignoreCase = true) }
 
     /** Footprint (design `seats.footprint`): x -2.20 .. 2.60, z -3.65 .. 0.35 (4.8 x 4.0 m incl. the podium). */

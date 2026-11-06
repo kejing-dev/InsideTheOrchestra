@@ -14,6 +14,7 @@ import android.os.Bundle
 class EyePermissionActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        live = this
         if (savedInstanceState != null) return
         if (granted(this)) {
             finish()
@@ -28,7 +29,21 @@ class EyePermissionActivity : Activity() {
         finish()
     }
 
+    override fun onDestroy() {
+        if (live === this) live = null
+        super.onDestroy()
+    }
+
     companion object {
+        /** The helper while it is up (its prompt can still be open when the user quits). */
+        @Volatile private var live: EyePermissionActivity? = null
+
+        /** D26 / D44 quit: the unanswered prompt's task goes too (it stayed in recents on the emulator, v0.1.6). */
+        fun closeForQuit() {
+            live?.let { runCatching { it.finishAndRemoveTask() } }
+            live = null
+        }
+
         const val PERMISSION = "com.picovr.permission.EYE_TRACKING"
         private const val REQUEST = 53
 

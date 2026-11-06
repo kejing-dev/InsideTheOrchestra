@@ -1,5 +1,6 @@
 package io.embodit.insideorchestra.domain.usecase
 
+import io.embodit.insideorchestra.domain.model.Orchestra
 import io.embodit.insideorchestra.domain.model.Quat4
 import io.embodit.insideorchestra.domain.model.Vec3
 import kotlin.math.abs
@@ -50,6 +51,22 @@ object HeadFrame {
         val h = heading(rotation)
         val anchor = Vec3(position.x, floorY, position.z) + h * distance
         return OrchPose(anchor, facing(anchor, position), scale)
+    }
+
+    /**
+     * v0.1.5 (user 2026-11-05: "默认就让用户在指挥台"): the orchestra placed so that the head stands over the podium
+     * centre on [floorY] and the players sit ahead along the level heading (orchestra -Z = the heading).
+     */
+    fun podiumAt(position: Vec3, rotation: Quat4, floorY: Float, scale: Float): OrchPose {
+        val yaw = yawOf(heading(rotation))
+        val origin = Vec3(position.x, floorY, position.z)
+        return OrchPose(origin + Quat4.axisAngle(Vec3.UP, yaw).rotate(Orchestra.ANCHOR * scale), yaw, scale)
+    }
+
+    /** Head pitch in degrees, + looking up (the window's level gate, D9). */
+    fun pitchDeg(rotation: Quat4): Float {
+        val f = rotation.rotate(Vec3.AHEAD)
+        return Math.toDegrees(kotlin.math.asin(f.y.coerceIn(-1f, 1f)).toDouble()).toFloat()
     }
 
     /** Yaw that turns a front (+Z) at [from] towards [to] about the vertical only. */

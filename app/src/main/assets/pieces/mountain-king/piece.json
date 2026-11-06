@@ -1,0 +1,501 @@
+{
+ "id": "mountain-king",
+ "titleZh": "山魔王的大厅",
+ "titleEn": "In the Hall of the Mountain King",
+ "composerZh": "格里格",
+ "composerEn": "Grieg",
+ "year": 1875,
+ "durationS": 171.74,
+ "parts": [
+  "V1",
+  "V2",
+  "VA",
+  "VC",
+  "CB",
+  "FL",
+  "OB",
+  "CL",
+  "BSN",
+  "HN",
+  "TPT",
+  "TBN",
+  "TUBA",
+  "TIMP",
+  "BD"
+ ],
+ "envelopeRate": 20,
+ "passes": [
+  {
+   "startS": 0.0,
+   "bpm": 84,
+   "captionZh": "圆号先吹出一个低低的长音，像山洞里的回声",
+   "captionEn": "The horns hold one low note, like an echo in a cave",
+   "focus": "br",
+   "pass": 0
+  },
+  {
+   "startS": 5.714,
+   "bpm": 84,
+   "captionZh": "主题来了：大管和大提琴、低音提琴用手指拨弦，一步一步往前走",
+   "captionEn": "The theme: bassoons with plucked cellos and basses, tiptoeing forward",
+   "focus": "str",
+   "pass": 1
+  },
+  {
+   "startS": 28.571,
+   "bpm": 88,
+   "captionZh": null,
+   "captionEn": null,
+   "focus": null,
+   "pass": 2
+  },
+  {
+   "startS": 50.39,
+   "bpm": 96,
+   "captionZh": "旋律爬高了：小提琴、中提琴接过来，双簧管和单簧管也加入",
+   "captionEn": "Higher now: violins and violas take over, oboe and clarinet join",
+   "focus": "ww",
+   "pass": 3
+  },
+  {
+   "startS": 70.39,
+   "bpm": 104,
+   "captionZh": null,
+   "captionEn": null,
+   "focus": null,
+   "pass": 4
+  },
+  {
+   "startS": 88.851,
+   "bpm": 114,
+   "captionZh": "弦乐全部拿起弓来拉，长笛在最上面闪着光",
+   "captionEn": "All strings switch to the bow; the flute sparkles on top",
+   "focus": "str",
+   "pass": 5
+  },
+  {
+   "startS": 105.693,
+   "bpm": 124,
+   "captionZh": null,
+   "captionEn": null,
+   "focus": null,
+   "pass": 6
+  },
+  {
+   "startS": 121.177,
+   "bpm": 136,
+   "captionZh": "铜管和定音鼓进来了，山魔王们开始追了",
+   "captionEn": "Brass and timpani arrive: the trolls give chase",
+   "focus": "br",
+   "pass": 7
+  },
+  {
+   "startS": 135.295,
+   "bpm": 148,
+   "captionZh": null,
+   "captionEn": null,
+   "focus": null,
+   "pass": 8
+  },
+  {
+   "startS": 148.268,
+   "bpm": 160,
+   "captionZh": "最后一遍：大鼓和镲一起砸下来，全团最快最响",
+   "captionEn": "Last time round: bass drum and cymbals crash in, everyone at full speed",
+   "focus": "perc",
+   "pass": 9
+  },
+  {
+   "startS": 160.268,
+   "bpm": 170,
+   "captionZh": "尾声：全团重击和弦，最后一下镲",
+   "captionEn": "Coda: hammered chords and one last crash",
+   "focus": null,
+   "pass": 10
+  }
+ ],
+ "rests": {
+  "vln": [
+   [
+    0.0,
+    50.35
+   ],
+   [
+    160.5,
+    160.95
+   ],
+   [
+    161.2,
+    161.65
+   ],
+   [
+    161.9,
+    162.35
+   ],
+   [
+    162.6,
+    163.05
+   ],
+   [
+    163.3,
+    163.75
+   ],
+   [
+    164.0,
+    164.5
+   ],
+   [
+    164.75,
+    165.2
+   ],
+   [
+    165.45,
+    165.9
+   ],
+   [
+    168.4,
+    171.75
+   ]
+  ],
+  "vla": [
+   [
+    0.0,
+    50.35
+   ],
+   [
+    160.5,
+    160.95
+   ],
+   [
+    161.2,
+    161.65
+   ],
+   [
+    161.9,
+    162.35
+   ],
+   [
+    162.6,
+    163.05
+   ],
+   [
+    163.3,
+    163.75
+   ],
+   [
+    164.0,
+    164.5
+   ],
+   [
+    164.75,
+    165.2
+   ],
+   [
+    165.45,
+    165.9
+   ],
+   [
+    168.4,
+    171.75
+   ]
+  ],
+  "vc": [
+   [
+    0.0,
+    5.7
+   ],
+   [
+    160.5,
+    160.95
+   ],
+   [
+    161.2,
+    161.65
+   ],
+   [
+    161.9,
+    162.35
+   ],
+   [
+    162.6,
+    163.05
+   ],
+   [
+    163.3,
+    163.75
+   ],
+   [
+    164.0,
+    164.5
+   ],
+   [
+    164.75,
+    165.2
+   ],
+   [
+    165.45,
+    165.9
+   ],
+   [
+    168.4,
+    171.75
+   ]
+  ],
+  "cb": [
+   [
+    0.0,
+    5.7
+   ],
+   [
+    160.5,
+    160.95
+   ],
+   [
+    161.2,
+    161.65
+   ],
+   [
+    161.9,
+    162.35
+   ],
+   [
+    162.6,
+    163.05
+   ],
+   [
+    163.3,
+    163.75
+   ],
+   [
+    164.0,
+    164.5
+   ],
+   [
+    164.75,
+    165.2
+   ],
+   [
+    165.45,
+    165.9
+   ],
+   [
+    168.4,
+    171.75
+   ]
+  ],
+  "ww": [
+   [
+    0.0,
+    5.7
+   ],
+   [
+    160.5,
+    160.95
+   ],
+   [
+    161.2,
+    161.65
+   ],
+   [
+    161.9,
+    162.35
+   ],
+   [
+    162.6,
+    163.05
+   ],
+   [
+    163.3,
+    163.75
+   ],
+   [
+    164.0,
+    164.5
+   ],
+   [
+    164.75,
+    165.2
+   ],
+   [
+    165.45,
+    165.9
+   ],
+   [
+    168.4,
+    171.75
+   ]
+  ],
+  "hn": [
+   [
+    5.65,
+    28.55
+   ],
+   [
+    88.85,
+    105.65
+   ],
+   [
+    160.5,
+    160.95
+   ],
+   [
+    161.2,
+    161.65
+   ],
+   [
+    161.9,
+    162.35
+   ],
+   [
+    162.6,
+    163.05
+   ],
+   [
+    163.3,
+    163.75
+   ],
+   [
+    164.0,
+    164.5
+   ],
+   [
+    164.75,
+    165.2
+   ],
+   [
+    165.45,
+    165.9
+   ],
+   [
+    168.4,
+    171.75
+   ]
+  ],
+  "tpt": [
+   [
+    0.0,
+    121.15
+   ],
+   [
+    160.5,
+    160.95
+   ],
+   [
+    161.2,
+    161.65
+   ],
+   [
+    161.9,
+    162.35
+   ],
+   [
+    162.6,
+    163.05
+   ],
+   [
+    163.3,
+    163.75
+   ],
+   [
+    164.0,
+    164.5
+   ],
+   [
+    164.75,
+    165.2
+   ],
+   [
+    165.45,
+    165.9
+   ],
+   [
+    168.4,
+    171.75
+   ]
+  ],
+  "lbr": [
+   [
+    0.0,
+    121.15
+   ],
+   [
+    160.5,
+    160.95
+   ],
+   [
+    161.2,
+    161.65
+   ],
+   [
+    161.9,
+    162.35
+   ],
+   [
+    162.6,
+    163.05
+   ],
+   [
+    163.3,
+    163.75
+   ],
+   [
+    164.0,
+    164.5
+   ],
+   [
+    164.75,
+    165.2
+   ],
+   [
+    165.45,
+    165.9
+   ],
+   [
+    168.4,
+    171.75
+   ]
+  ],
+  "timp": [
+   [
+    0.0,
+    121.15
+   ],
+   [
+    166.9,
+    171.75
+   ]
+  ],
+  "bd": [
+   [
+    0.0,
+    148.25
+   ],
+   [
+    161.9,
+    165.9
+   ],
+   [
+    167.9,
+    171.75
+   ]
+  ]
+ },
+ "families": {
+  "str": {
+   "zh": "开头大提琴和低音提琴用手指拨弦，迈出山魔王的脚步；后来全体拿起弓来拉。",
+   "en": "Cellos and basses pluck the opening steps; later every string player picks up the bow."
+  },
+  "ww": {
+   "zh": "大管第一个吹出主题，后来双簧管、单簧管和长笛一层层加上去。",
+   "en": "The bassoon plays the theme first; oboe, clarinet and flute stack on top later."
+  },
+  "br": {
+   "zh": "开头圆号的一个长音像山洞里的回声，后半段小号和长号带着全团冲。",
+   "en": "A horn's long note opens like a cave echo; later trumpets and trombones drive the chase."
+  },
+  "perc": {
+   "zh": "定音鼓追着拍子越敲越快，最后一遍大鼓和镲一起砸下来。",
+   "en": "Timpani chase the beat faster and faster; in the last round bass drum and cymbals crash in."
+  }
+ }
+}

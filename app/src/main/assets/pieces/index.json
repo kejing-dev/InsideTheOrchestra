@@ -1,0 +1,56 @@
+[
+ {
+  "id": "mountain-king",
+  "titleZh": "山魔王的大厅",
+  "titleEn": "In the Hall of the Mountain King",
+  "composerZh": "格里格",
+  "composerEn": "Grieg",
+  "year": 1875,
+  "durationS": 171.74
+ },
+ {
+  "id": "ode-to-joy",
+  "titleZh": "欢乐颂",
+  "titleEn": "Ode to Joy",
+  "composerZh": "贝多芬",
+  "composerEn": "Beethoven",
+  "year": 1824,
+  "durationS": 155.31
+ },
+ {
+  "id": "canon",
+  "titleZh": "D 大调卡农",
+  "titleEn": "Canon in D",
+  "composerZh": "帕赫贝尔",
+  "composerEn": "Pachelbel",
+  "year": 1690,
+  "durationS": 124.82
+ },
+ {
+  "id": "blue-danube",
+  "titleZh": "蓝色多瑙河",
+  "titleEn": "The Blue Danube",
+  "composerZh": "小约翰·施特劳斯",
+  "composerEn": "J. Strauss II",
+  "year": 1867,
+  "durationS": 115.14
+ },
+ {
+  "id": "new-world-largo",
+  "titleZh": "自新大陆·广板",
+  "titleEn": "New World Symphony, Largo",
+  "composerZh": "德沃夏克",
+  "composerEn": "Dvořák",
+  "year": 1893,
+  "durationS": 151.19
+ },
+ {
+  "id": "morning-mood",
+  "titleZh": "晨景",
+  "titleEn": "Morning Mood",
+  "composerZh": "格里格",
+  "composerEn": "Grieg",
+  "year": 1875,
+  "durationS": 81.0
+ }
+]
